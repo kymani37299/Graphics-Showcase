@@ -7,12 +7,7 @@
 #include <Engine/System/ApplicationConfiguration.h>
 #include <Engine/Utility/StringUtility.h>
 
-#include <Engine/Core/Application.h>
-
-class EmptyApp : public Application
-{
-
-};
+#include "App/GraphicsApplication.h"
 
 void ReadCommandArguments(const std::string& arguments)
 {
@@ -24,6 +19,20 @@ void ReadCommandArguments(const std::string& arguments)
 		StringUtility::ReplaceAll(finalArgument, " ", "");
 		AppConfig.Settings.insert(finalArgument);
 	}
+}
+
+class EmptyApp : public Application
+{
+
+};
+
+GraphicsApplication* CreateGraphicsApplication()
+{
+	std::vector<Application*> applications{};
+	applications.push_back(new EmptyApp{});
+	applications.push_back(new EmptyApp{});
+
+	return new GraphicsApplication{ applications };
 }
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, int showFlags)
@@ -38,6 +47,6 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParams, 
 
 	srand((uint32_t)time(0));
 
-	Engine e{ new EmptyApp() };
+	Engine e{ CreateGraphicsApplication() };
 	e.Run();
 }
