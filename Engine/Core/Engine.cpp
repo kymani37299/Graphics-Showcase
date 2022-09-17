@@ -82,8 +82,8 @@ void Engine::Run()
 			finalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV);
 			DeferredTrash::Put(finalRT);
 		}
-
-		GUI::Get()->Render(context, finalRT);
+		
+		GUI::Get()->Render(context, finalRT); // TODO: First copy the finalRT to the texture with good format then render gui to that texture
 		Device::Get()->EndFrame(finalRT);
 
 		WindowInput::InputFrameEnd();
@@ -91,9 +91,8 @@ void Engine::Run()
 	}
 }
 
-// TODO: Integrate this
 void Engine::ReloadShaders()
 {
-	// GFX::Storage::ReloadAllShaders();
-	// m_Application->OnShaderReload(Device::Get()->GetContext());
+	GFX::ReloadAllShaders();
+	m_Application->OnShaderReload(Device::Get()->GetContext());
 }

@@ -53,16 +53,17 @@ bool GUI::HandleWndProc(void* hwnd, unsigned int msg, unsigned int wparam, long 
 
 void GUI::Update(float dt)
 {
-	for (GUIElement* element : m_Elements)
+	for (auto& it : m_Elements)
 	{
-		element->Update(dt);
+		for (GUIElement* element : it.second)
+		{
+			element->Update(dt);
+		}
 	}
 }
 
 void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 {
-	if (!m_Visible) return;
-
 	if (!m_Initialized)
 	{
 		// NOTE: If we are having multiple contexts make sure that context that initialized ImGui is used for imgui draw
@@ -74,6 +75,8 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 
 		m_Initialized = true;
 	}
+
+	if (!m_Visible || m_Elements.empty()) return;
 
 	GFX::Cmd::MarkerBegin(context, "ImGUI");
 
@@ -99,21 +102,31 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 	// Draw menu bar
 	if (ImGui::BeginMainMenuBar())
 	{
-		if (ImGui::BeginMenu("Tools"))
+		for (auto& it : m_Elements) 
 		{
-			for (GUIElement* element : m_Elements)
+			if (ImGui::BeginMenu(it.first.c_str()))
 			{
-				ImGui::MenuItem(element->GetName().c_str(), 0, &element->GetShownRef());
+				for (GUIElement* element : it.second)
+				{
+					ImGui::MenuItem(element->GetName().c_str(), 0, &element->GetShownRef());
+				}
+				ImGui::EndMenu();
 			}
-			ImGui::EndMenu();
 		}
 		ImGui::EndMainMenuBar();
 	}
 
 	// Draw elements
-	for (GUIElement* element : m_Elements)
+	uint32_t id = 0;
+	for (auto& it : m_Elements)
 	{
-		element->RenderElement();
+		for (GUIElement* element : it.second)
+		{
+			ImGui::PushID(id);
+			element->RenderElement();
+			ImGui::PopID();
+			id++;
+		}
 	}
 
 	ImGui::Render();
@@ -124,8 +137,11 @@ void GUI::Render(GraphicsContext& context, Texture* renderTarget)
 
 void GUI::Reset()
 {
-	for (GUIElement* element : m_Elements)
+	for (auto& it : m_Elements)
 	{
-		element->Reset();
+		for (GUIElement* element : it.second)
+		{
+			element->Reset();
+		}
 	}
 }

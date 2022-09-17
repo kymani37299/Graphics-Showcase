@@ -20,10 +20,30 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="App\GraphicsApplication.cpp" />
+    <ClCompile Include="Clouds\CloudsApp.cpp" />
+    <ClCompile Include="Clouds\CloudsAppGUI.cpp" />
+    <ClCompile Include="Common\Camera.cpp" />
+    <ClCompile Include="Common\ConstantBuffer.cpp" />
+    <None Include="Clouds\Shaders\clouds.hlsl">
+      <FileType>Document</FileType>
+    </None>
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="App\GraphicsApplication.h" />
+    <ClInclude Include="App\GraphicsApplicationGUI.h" />
+    <ClInclude Include="App\SampleList.h" />
+    <ClInclude Include="Clouds\CloudsApp.h" />
+    <ClInclude Include="Clouds\CloudsAppGUI.h" />
+    <ClInclude Include="Clouds\Settings.h" />
+    <ClInclude Include="Common\Camera.h" />
+    <ClInclude Include="Common\common_shader.h" />
+    <ClInclude Include="Common\ConstantBuffer.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Clouds\Shaders\worley_noise.hlsl">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

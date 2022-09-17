@@ -1,43 +1,85 @@
 #include "GraphicsApplication.h"
 
-#include <Engine/Gui/GUI.h>
-#include <Engine/Gui/Imgui/imgui.h>
+#include <Engine/Render/Commands.h>
+#include <Engine/Render/Context.h>
+#include <Engine/Render/Shader.h>
 #include <Engine/System/Window.h>
+#include <Engine/System/Input.h>
 
-class GraphicsApplicationGUI : public GUIElement
+#include "App/GraphicsApplicationGUI.h"
+#include "Clouds/CloudsApp.h"
+
+#define MAX(A,B) ((A>B) ? (A) : (B))
+#define ADD_SAMPLE(Index, Class, Name) m_NumSamples = MAX(m_NumSamples, Index+1); if(m_SampleNames.size() < Index+1) m_SampleNames.resize(Index+1); m_SampleNames[Index] = Name;
+void GraphicsApplication::RegisterSamples()
 {
-public:
-	GraphicsApplicationGUI(GraphicsApplication* application):
-		GUIElement("Active application", true),
-		m_Application(application)
-	{ }
-	
-	void Update(float dt) override {}
+#include "App/SampleList.h"
+}
+#undef ADD_SAMPLE
+#undef MAX
 
-protected:
-
-	void Render() override
+#define ADD_SAMPLE(Index, Class, Name) case Index: m_ActiveSample = new Class{}; break;
+void GraphicsApplication::SwitchSample(uint32_t sampleIndex)
+{
+	switch (sampleIndex)
 	{
-		ImGui::Text("Active: %u", m_Application->m_ActiveApplication);
-
-		if (ImGui::Button("Next"))
-		{
-			m_Application->m_ActiveApplication = (m_Application->m_ActiveApplication + 1) % m_Application->m_Applications.size();
-		}
-
-		if (ImGui::Button("Previous"))
-		{
-			m_Application->m_ActiveApplication = (m_Application->m_ActiveApplication - 1) % m_Application->m_Applications.size();
-		}
-
+#include "App/SampleList.h"
+	default:
+		ASSERT(0, "[GraphicsApplication] Trying to switch to nonexistent sample!");
 	}
+}
+#undef ADD_SAMPLE
 
-private:
-	GraphicsApplication* m_Application;
-};
-
-void GraphicsApplication::OnInit_Internal()
+void GraphicsApplication::OnInit_Internal(GraphicsContext& context)
 {
 	Window::Get()->ShowCursor(true);
-	GUI::Get()->AddElement(new GraphicsApplicationGUI(this));
+
+	GUI* gui = GUI::Get();
+	gui->PushMenu("General");
+	gui->AddElement(new RenderStatsGUI());
+	gui->AddElement(new GraphicsApplicationGUI(this));
+	gui->AddElement(new ControlsGUI());
+	gui->PopMenu();
+
+	RegisterSamples();
+	SwitchSample(m_ActiveSampleIndex);
+	m_ActiveSample->OnInit(context);
+}
+
+void GraphicsApplication::OnUpdate_Internal(GraphicsContext& context, float dt)
+{
+	if (Input::IsKeyJustPressed('F'))
+	{
+		static bool showCursorToggle = true;
+		showCursorToggle = !showCursorToggle;
+		Window::Get()->ShowCursor(showCursorToggle);
+	}
+
+	if (Input::IsKeyJustPressed('R'))
+	{
+		GFX::ReloadAllShaders();
+	}
+
+	if (Input::IsKeyJustPressed('G'))
+	{
+		GUI::Get()->ToggleVisible();
+	}
+
+	if (Input::IsKeyJustPressed(VK_ESCAPE))
+	{
+		Window::Get()->Shutdown();
+	}
+
+	if (m_PendingSampleIndex != m_ActiveSampleIndex)
+	{
+		GFX::Cmd::FlushContext(context);
+		GFX::Cmd::ResetContext(context);
+		
+		m_ActiveSample->OnDestroy(context);
+		delete m_ActiveSample;
+
+		m_ActiveSampleIndex = m_PendingSampleIndex;
+		SwitchSample(m_ActiveSampleIndex);
+		m_ActiveSample->OnInit(context);
+	}
 }

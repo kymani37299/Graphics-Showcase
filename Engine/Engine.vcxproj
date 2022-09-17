@@ -192,7 +192,9 @@
     <ClInclude Include="Common.h" />
     <ClInclude Include="Core\Application.h" />
     <ClInclude Include="Core\Engine.h" />
+    <ClInclude Include="Core\EngineMain.h" />
     <ClInclude Include="Gui\GUI.h" />
+    <ClInclude Include="Gui\ImGui.h" />
     <ClInclude Include="Gui\Imgui\imconfig.h" />
     <ClInclude Include="Gui\Imgui\imgui.h" />
     <ClInclude Include="Gui\Imgui\imgui_impl_dx12.h" />
