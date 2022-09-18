@@ -112,51 +112,6 @@ float remap(float srcA, float srcB, float dstA, float dstB, float t)
 	return lerp(dstA, dstB, (t - srcA) / (srcB - srcA));
 }
 
-#if 0
-float SampleCloudDensity(float3 position)
-{
-	const CloudBox cloudBounds = CreateCloudBox(CloudSettings.Position, CloudSettings.Size);
-
-	float3 edgeDistances = 0.0f;
-	edgeDistances.x = min(edgeFadeDistance, min(position.x - cloudBounds.BoundsMin, cloudBounds.BoundsMax - position.x));
-	// edgeDistances.y = min(edgeFadeDistance, min(position.y - cloudBounds.BoundsMin, cloudBounds.BoundsMax - position.y));
-	edgeDistances.z = min(edgeFadeDistance, min(position.z - cloudBounds.BoundsMin, cloudBounds.BoundsMax - position.z));
-
-	// Fade clouds that are on edge
-	const float edgeGradient = min(edgeDistances.x, edgeDistances.z) / edgeFadeDistance;
-	
-	// Height gradient
-	const float heightPercent = (position.y - cloudBounds.BoundsMin.y) / CloudSettings.Size.y;
-	const float heightGradient = saturate(remap(0.0, minHeightGradient, 0, 1, heightPercent)) * saturate(remap(1, maxHeightGradient, 0, 1, heightPercent));
-
-	const float totalGradient = edgeGradient * heightGradient;
-
-	// float3 uvw = (size * .5 + rayPos) * baseScale * scale;
-	// float3 shapeSamplePos = uvw + shapeOffset
-	const float3 shapeSamplePos = position * CloudSettings.SamplingScale * 0.01f + CloudSettings.SamplingOffset;
-	const float4 shapeNoise = CloudNoise.SampleLevel(s_LinearWrap, shapeSamplePos, 0);
-	const float shapeFBM = dot(shapeNoise, shapeNoiseWeights) * totalGradient;
-
-	// Maybe try: density = fbm + densityOffset;
-	const float shapeDensity = max(0.0f, shapeFBM - CloudSettings.DensityTreshold);
-	
-	if (shapeDensity > 0.0f)
-	{
-		const float3 detailSamplePos = shapeSamplePos * detailNoiseScale + detailOffset;
-		const float4 detailNoise = CloudDetailNoise.SampleLevel(s_LinearWrap, detailSamplePos, 0);
-		const float detailFBM = dot(detailNoise, detailNoiseWeights);
-	
-		const float inverseShapeFBM = 1.0f - shapeFBM;
-		const float detailErodeWeight = inverseShapeFBM * inverseShapeFBM * inverseShapeFBM;
-		const float cloudDensity = shapeDensity - (1.0f - detailFBM) * detailErodeWeight * detailNoiseWeight;
-	
-		return cloudDensity * CloudSettings.DensityMultiplier;
-	}
-
-	return 0.0f;
-}
-#endif // THIS NOT WORKING
-
 static const float EdgeFadeDistance = 50.0f;
 static const float MinHeightGradient = 0.2f;
 static const float MaxHeightGradient = 0.7f;
