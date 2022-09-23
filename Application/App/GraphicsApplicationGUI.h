@@ -55,6 +55,8 @@ protected:
 		ImGui::Text("F    - Toggle mouse");
 		ImGui::Text("R    - Reload shaders");
 		ImGui::Text("G    - Togggle gui");
+		ImGui::Text("Z    - Previous sample");
+		ImGui::Text("X    - Next sample");
 	}
 };
 
@@ -72,7 +74,7 @@ public:
 		DTHistory.push_back(dt);
 		if (lastUpdate > UpdateInterval)
 		{
-			uint32_t count = DTHistory.size();
+			size_t count = DTHistory.size();
 			float sum = 0.0f;
 			for (float _dt : DTHistory)
 			{

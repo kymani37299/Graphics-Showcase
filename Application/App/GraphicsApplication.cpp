@@ -7,7 +7,9 @@
 #include <Engine/System/Input.h>
 
 #include "App/GraphicsApplicationGUI.h"
+#include "Common/DebugRender.h"
 #include "Clouds/CloudsApp.h"
+#include "Grass/GrassApp.h"
 
 #define MAX(A,B) ((A>B) ? (A) : (B))
 #define ADD_SAMPLE(Index, Class, Name) m_NumSamples = MAX(m_NumSamples, Index+1); if(m_SampleNames.size() < Index+1) m_SampleNames.resize(Index+1); m_SampleNames[Index] = Name;
@@ -33,6 +35,7 @@ void GraphicsApplication::SwitchSample(uint32_t sampleIndex)
 void GraphicsApplication::OnInit_Internal(GraphicsContext& context)
 {
 	Window::Get()->ShowCursor(true);
+	DebugRender::Init(context);
 
 	GUI* gui = GUI::Get();
 	gui->PushMenu("General");
@@ -70,6 +73,16 @@ void GraphicsApplication::OnUpdate_Internal(GraphicsContext& context, float dt)
 		Window::Get()->Shutdown();
 	}
 
+	if (Input::IsKeyJustPressed('Z'))
+	{
+		PreviousSample();
+	}
+
+	if (Input::IsKeyJustPressed('X'))
+	{
+		NextSample();
+	}
+
 	if (m_PendingSampleIndex != m_ActiveSampleIndex)
 	{
 		GFX::Cmd::FlushContext(context);
@@ -82,4 +95,9 @@ void GraphicsApplication::OnUpdate_Internal(GraphicsContext& context, float dt)
 		SwitchSample(m_ActiveSampleIndex);
 		m_ActiveSample->OnInit(context);
 	}
+}
+
+void GraphicsApplication::OnDestroy_Internal(GraphicsContext& context)
+{
+	DebugRender::Deinit();
 }

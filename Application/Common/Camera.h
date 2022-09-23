@@ -4,9 +4,16 @@
 
 struct Camera;
 
+struct BoundingSphere
+{
+	Float3 Center{ 0.0f, 0.0f, 0.0f };
+	float Radius{ 1.0f };
+};
+
 struct ViewFrustum
 {
 	void Update(const Camera& camera);
+	bool IsInFrustum(const BoundingSphere& sphere);
 
 	Float4 Planes[6];
 };

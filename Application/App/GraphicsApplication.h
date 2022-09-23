@@ -14,6 +14,7 @@ public:
 
 	void OnDestroy(GraphicsContext& context) override 
 	{
+		OnDestroy_Internal(context);
 		m_ActiveSample->OnDestroy(context);
 		delete m_ActiveSample;
 	}
@@ -51,6 +52,7 @@ private:
 
 	void OnInit_Internal(GraphicsContext& context);
 	void OnUpdate_Internal(GraphicsContext& context, float dt);
+	void OnDestroy_Internal(GraphicsContext& context);
 
 private:
 	uint32_t m_PendingSampleIndex = 0;

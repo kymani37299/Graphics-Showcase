@@ -2,6 +2,11 @@
 
 #include <Windows.h>
 
+// Hack for compiling imgui
+#ifdef WIN32
+#define ImTextureID ImU64
+#endif // WIN32
+
 #include "Render/Device.h"
 #include "Render/Memory.h"
 #include "Render/Context.h"

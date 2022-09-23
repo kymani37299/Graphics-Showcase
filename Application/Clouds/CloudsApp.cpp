@@ -40,7 +40,7 @@ static Texture* GenerateWorleyNoise(GraphicsContext& context)
 	}
 
 	// Create resources
-	Shader* worleyShader = new Shader("GraphicsShowcase/Clouds/Shaders/worley_noise.hlsl");
+	Shader* worleyShader = new Shader("Application/Clouds/Shaders/worley_noise.hlsl");
 	ResourceInitData initData{&context, points.data()};
 	Buffer* pointsBuffer = GFX::CreateBuffer(CloudNoiseSettings.NumSamplePoints * sizeof(WorleyNoiseSamplePoint), sizeof(WorleyNoiseSamplePoint), RCF_None, &initData);
 	DeferredTrash::Put(pointsBuffer);
@@ -76,7 +76,7 @@ static Texture* GenerateWorleyNoise(GraphicsContext& context)
 
 void CloudsApp::OnInit(GraphicsContext& context)
 {
-	m_CloudsShader = ScopedRef<Shader>(new Shader("GraphicsShowcase/Clouds/Shaders/clouds.hlsl"));
+	m_CloudsShader = ScopedRef<Shader>(new Shader("Application/Clouds/Shaders/clouds.hlsl"));
 	
 	m_Camera.Position = Float3(0.0f, 0.0f, 0.0f);
 	m_Camera.Rotation = Float3(1.0f, -37.0f, 0.0f);

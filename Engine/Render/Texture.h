@@ -36,10 +36,6 @@ namespace GFX
 		return CreateTextureArray(width, height, depth, creationFlags | RCF_Texture3D, numMips, format);
 	}
 
-	Texture* LoadTextureHDR(const std::string& path, uint64_t creationFlags);
-	Texture* LoadTexture(GraphicsContext& context, const std::string& path, uint64_t creationFlags, uint32_t numMips = 1);
-	Texture* LoadCubemap(const std::string& path, uint64_t creationFlags);
-
 	TextureSubresource* CreateTextureSubresource(Texture* resource, uint32_t mipBegin, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount);
 
 	uint32_t GetSubresourceIndex(Texture* texture, uint32_t mipIndex, uint32_t sliceOrArrayIndex);

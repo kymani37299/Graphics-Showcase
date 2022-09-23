@@ -5,7 +5,7 @@
 
 namespace ImGui
 {
-	bool DragUint(const std::string& label, uint32_t& value, const float stepSize = 1.0f)
+	inline bool DragUint(const std::string& label, uint32_t& value, const float stepSize = 1.0f)
 	{
 		int intValue = value;
 		if (ImGui::DragInt(label.c_str(), &intValue, stepSize))
@@ -16,7 +16,7 @@ namespace ImGui
 		return false;
 	}
 
-	bool DragFloat(const std::string& label, Float4& value, const float stepSize = 0.1f)
+	inline bool DragFloat(const std::string& label, Float4& value, const float stepSize = 0.1f)
 	{
 		float tmpValues[4];
 		tmpValues[0] = value.x;
@@ -32,7 +32,7 @@ namespace ImGui
 		return false;
 	}
 
-	bool DragFloat(const std::string& label, Float3& value, const float stepSize = 0.1f)
+	inline bool DragFloat(const std::string& label, Float3& value, const float stepSize = 0.1f)
 	{
 		float tmpValues[3];
 		tmpValues[0] = value.x;
@@ -47,7 +47,7 @@ namespace ImGui
 		return false;
 	}
 
-	bool DragFloat(const std::string& label, Float2& value, const float stepSize = 0.1f)
+	inline bool DragFloat(const std::string& label, Float2& value, const float stepSize = 0.1f)
 	{
 		float tmpValues[2];
 		tmpValues[0] = value.x;
@@ -61,7 +61,7 @@ namespace ImGui
 		return false;
 	}
 
-	bool DragFloat(const std::string& label, DirectX::XMFLOAT4& value, const float stepSize = 0.1f)
+	inline bool DragFloat(const std::string& label, DirectX::XMFLOAT4& value, const float stepSize = 0.1f)
 	{
 		Float4 tmp{ value };
 		if (ImGui::DragFloat(label, tmp, stepSize))
@@ -72,7 +72,7 @@ namespace ImGui
 		return false;
 	}
 
-	bool DragFloat(const std::string& label, DirectX::XMFLOAT3A& value, const float stepSize = 0.1f)
+	inline bool DragFloat(const std::string& label, DirectX::XMFLOAT3A& value, const float stepSize = 0.1f)
 	{
 		Float3 tmp{ value };
 		if (ImGui::DragFloat(label, tmp, stepSize))
@@ -83,14 +83,25 @@ namespace ImGui
 		return false;
 	}
 
-	bool ColorPicker(const std::string& label, DirectX::XMFLOAT3A& value)
+	inline bool DragFloat(const std::string& label, DirectX::XMFLOAT2& value, const float stepSize = 0.1f)
+	{
+		Float2 tmp{ value };
+		if (ImGui::DragFloat(label, tmp, stepSize))
+		{
+			value = tmp.ToXMF();
+			return true;
+		}
+		return false;
+	}
+
+	inline bool ColorEdit(const std::string& label, DirectX::XMFLOAT3A& value)
 	{
 		float tmpValues[3];
 		tmpValues[0] = value.x;
 		tmpValues[1] = value.y;
 		tmpValues[2] = value.z;
 
-		if (ImGui::ColorPicker3(label.c_str(), tmpValues))
+		if (ImGui::ColorEdit3(label.c_str(), tmpValues))
 		{
 			value.x = tmpValues[0];
 			value.y = tmpValues[1];

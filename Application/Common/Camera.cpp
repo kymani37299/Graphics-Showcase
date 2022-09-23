@@ -74,6 +74,16 @@ void ViewFrustum::Update(const Camera& c)
 	}
 }
 
+bool ViewFrustum::IsInFrustum(const BoundingSphere& sphere)
+{
+	for (uint32_t i = 0; i < 6; i++)
+	{
+		const float signedDistance = Float4{ sphere.Center.x, sphere.Center.y, sphere.Center.z, 1.0f }.Dot(Planes[i]);
+		if (signedDistance < -sphere.Radius) return false;
+	}
+	return true;
+}
+
 Camera Camera::CreatePerspective(float fov, float aspect, float znear, float zfar)
 {
 	Camera cam;

@@ -76,7 +76,7 @@ namespace CloudsAppGUI
 		void Render() override
 		{
 			ImGui::DragFloat("Position", SunSettings.Position);
-			ImGui::ColorPicker("Radiance", SunSettings.Radiance);
+			ImGui::ColorEdit("Radiance", SunSettings.Radiance);
 		}
 	};
 
