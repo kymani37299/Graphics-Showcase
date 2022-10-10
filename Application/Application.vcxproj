@@ -19,6 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Animation\AnimationApp.cpp" />
+    <ClCompile Include="Animation\AnimationAppGUI.cpp" />
     <ClCompile Include="App\GraphicsApplication.cpp" />
     <ClCompile Include="Clouds\CloudsApp.cpp" />
     <ClCompile Include="Clouds\CloudsAppGUI.cpp" />
@@ -33,6 +35,8 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Animation\AnimationApp.h" />
+    <ClInclude Include="Animation\AnimationAppGUI.h" />
     <ClInclude Include="App\GraphicsApplication.h" />
     <ClInclude Include="App\GraphicsApplicationGUI.h" />
     <ClInclude Include="App\SampleList.h" />
@@ -75,6 +79,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Common\debug_render.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Animation\geometry.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Animation\background.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

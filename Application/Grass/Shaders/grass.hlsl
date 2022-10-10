@@ -23,8 +23,6 @@ struct VertexIN
 {
 	float3 Position : SV_POSITION;
 	float2 Texcoord : TEXCOORD;
-	float3 Normal : NORMAL;
-	float4 Tangent : TANGENT;
 	uint InstanceID : SV_InstanceID;
 };
 
@@ -95,11 +93,8 @@ VertexOUT VS(VertexIN IN)
 	worldPos = worldPos + grassPosition; // Instance position
 	ApplyWind(grassPosition, localHeight, worldPos); // Wind
 	
-	const float4 viewPos = mul(float4(worldPos, 1.0f), MainCamera.WorldToView);
-	const float4 clipPos = mul(viewPos, MainCamera.ViewToClip);
-
 	VertexOUT OUT;
-	OUT.Position = clipPos;
+	OUT.Position = GetClipPosition(worldPos, MainCamera);
 	OUT.LocalHeight = localHeight;
 	return OUT;
 }

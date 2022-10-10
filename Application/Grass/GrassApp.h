@@ -45,7 +45,7 @@ private:
 
 	ModelLoading::SceneObject m_GrassObject_LowPoly;
 	ModelLoading::SceneObject m_GrassObject_HighPoly;
-	Camera m_Camera = Camera::CreatePerspective(75.0f, (float)AppConfig.WindowWidth / AppConfig.WindowHeight, 0.1f, 100.0f);
+	Camera m_Camera = Camera::CreatePerspective(75.0f, (float)AppConfig.WindowWidth / AppConfig.WindowHeight, 0.1f, 500.0f);
 	float m_TimeSeconds = 0.0f;
 };
 

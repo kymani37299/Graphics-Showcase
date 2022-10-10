@@ -1,0 +1,204 @@
+#include "AnimationApp.h"
+
+#include <Engine/Render/Commands.h>
+#include <Engine/Render/Buffer.h>
+#include <Engine/Render/Texture.h>
+#include <Engine/Render/Shader.h>
+#include <Engine/Loading/ModelLoading.h>
+#include <Engine/Loading/TextureLoading.h>
+#include <Engine/Loading/AnimationOperations.h>
+#include <Engine/Utility/MathUtility.h>
+
+#include "Animation/AnimationAppGUI.h"
+#include "Common/ConstantBuffer.h"
+
+void AnimationApp::OnInit(GraphicsContext& context)
+{
+	ModelLoading::Loader loader{ context };
+	const auto loadModel = [&loader](const std::string& path)
+	{
+		auto scene = loader.Load(path);
+		ASSERT_CORE(!scene.empty(), "Animation sample missing assets!");
+		return scene[0];
+	};
+	
+	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedTriangle/AnimatedTriangle.gltf"));
+	loader.SetPositionOrigin({ 4.0f, 0.0f, -1.0f });
+	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedCube/AnimatedCube.gltf"));
+	loader.SetPositionOrigin({ 8.0f, 0.0f, -1.0f });
+	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedMorphCube/AnimatedMorphCube.gltf"));
+	loader.SetPositionOrigin({ 12.0f, 0.0f, -1.0f });
+	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedMorphSphere/AnimatedMorphSphere.gltf"));
+	loader.SetPositionOrigin({ 16.0f, 0.0f, -1.0f });
+	//m_SceneObjects.push_back(loadModel("Application/Animation/Resources/SimpleSkin/SimpleSkin.gltf"));
+	//loader.SetPositionOrigin({ 20.0f, 0.0f, -1.0f });
+
+	auto scene = loader.Load("Application/Animation/Resources/SkinnedManequin.gltf");
+	m_SceneObjects.push_back(scene[0]);
+	m_SceneObjects.push_back(scene[1]);
+
+	m_SceneObjects[0].AlbedoFactor = Float3{ 0.2f, 0.2f, 0.8f };
+	m_SceneObjects[2].AlbedoFactor = Float3{ 0.2f, 0.9f, 0.2f };
+	m_SceneObjects[3].AlbedoFactor = Float3{ 0.9f, 0.2f, 0.4f };
+
+	m_GeometryShader = ScopedRef<Shader>(new Shader{ "Application/Animation/geometry.hlsl" });
+	m_BackgroundShader = ScopedRef<Shader>(new Shader("Application/Animation/background.hlsl"));
+	m_EmptyBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(1, 1, RCF_None));
+
+	m_Camera.Position = Float3(0.5f, 0.7f, 15.0f);
+	m_Camera.Rotation = Float3(-0.15f, -1.6f, 0.0f);
+
+	AnimationAppGUI::AddGUI(this);
+}
+
+void AnimationApp::OnDestroy(GraphicsContext& context)
+{
+	for (ModelLoading::SceneObject& obj : m_SceneObjects)
+	{
+		ModelLoading::Free(obj);
+	}
+	AnimationAppGUI::RemoveGUI();
+}
+
+Texture* AnimationApp::OnDraw(GraphicsContext& context)
+{
+	GFX::Cmd::ClearRenderTarget(context, m_FinalResult.get());
+	GFX::Cmd::ClearDepthStencil(context, m_DepthTexture.get());
+
+	// Background
+	{
+		static const Float3 SkyColor = Float3(135.0f, 206.0f, 235.0f) / 255.0f;
+
+		GFX::Cmd::MarkerBegin(context, "Background");
+
+		ConstantBuffer cb{};
+		cb.Add(SkyColor);
+
+		GraphicsState state{};
+		state.Table.CBVs.push_back(cb.GetBuffer());
+		state.Shader = m_BackgroundShader.get();
+		state.RenderTargets.push_back(m_FinalResult.get());
+		GFX::Cmd::DrawFC(context, state);
+		GFX::Cmd::BindState(context, state);
+		GFX::Cmd::MarkerEnd(context);
+	}
+
+	GFX::Cmd::MarkerBegin(context, "Geometry");
+
+	GraphicsState state{};
+	
+	state.RenderTargets.push_back(m_FinalResult.get());
+	state.DepthStencil = m_DepthTexture.get();
+	state.DepthStencilState.DepthEnable = true;
+	state.Table.CBVs.resize(1);
+	state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP });
+	
+	for (const ModelLoading::SceneObject& object : m_SceneObjects)
+	{
+		state.Table.SRVs.clear();
+		state.ShaderConfig.clear();
+		state.VertexBuffers.clear();
+
+		DirectX::XMFLOAT4X4 animationTransform = AnimationOperations::GetAnimationTransformation(object.AnimcationData, m_AnimationTime, AnimationOperations::AnimationType::Repeat);
+		
+		ConstantBuffer cb{};
+		cb.Add(m_Camera.ConstantData);
+		cb.Add(XMUtility::ToHLSLFloat4x4(animationTransform));
+		cb.Add(XMUtility::ToHLSLFloat4x4(object.ModelToWorld));
+		cb.Add(object.AlbedoFactor);
+
+		state.Table.SRVs.push_back(object.Albedo);
+		state.VertexBuffers.push_back(object.Positions);
+		state.VertexBuffers.push_back(object.Texcoords);
+		state.VertexBuffers.push_back(object.Normals);
+		state.IndexBuffer = object.Indices;
+		state.Shader = m_GeometryShader.get();
+
+		// Object is using morphs
+		if (!object.MorphTargets.empty())
+		{
+			// Must match with geometry.hlsl
+			constexpr uint32_t MaxMorphWeights = 16;
+
+			state.ShaderConfig.push_back("APPLY_MORPHS");
+
+			std::vector<float> morphWeights = {};
+			if(m_EnableWeightAnimation)
+				morphWeights = AnimationOperations::GetAnimatedMorphWeights(object, m_AnimationTime, AnimationOperations::AnimationType::PingPong);
+			else
+			{
+				for (const ModelLoading::MorphTarget& target : object.MorphTargets)
+					morphWeights.push_back(target.Weight);
+			}
+			
+			const uint32_t numWeights = min((uint32_t) morphWeights.size(), MaxMorphWeights);
+			
+			cb.Add(numWeights);
+			for (uint32_t i = 0; i < MaxMorphWeights; i++)
+			{
+				cb.Add(i < numWeights ? morphWeights[i] : 0.0f);
+				state.Table.SRVs.push_back(i < numWeights ? object.MorphTargets[i].Data : m_EmptyBuffer.get());
+			}
+		}
+
+		// Object is using skinning
+		if (!object.Skeleton.empty())
+		{
+			// Must match with geometry.hlsl
+			constexpr uint32_t MaxSkeletonJoints = 128;
+			ASSERT(object.Skeleton.size() < MaxSkeletonJoints, "Too much skeleton joints!");
+
+			state.ShaderConfig.push_back("APPLY_SKIN");
+			state.VertexBuffers.push_back(object.Weights);
+			state.VertexBuffers.push_back(object.Joints);
+
+			std::vector<DirectX::XMFLOAT4X4> jointTransforms;
+			std::vector<DirectX::XMFLOAT4X4> jointAnimationTransformations;
+			std::vector<DirectX::XMFLOAT4X4> modelToJointTransforms;
+			jointTransforms.resize(MaxSkeletonJoints);
+			jointAnimationTransformations.resize(MaxSkeletonJoints);
+			modelToJointTransforms.resize(MaxSkeletonJoints);
+
+			for (size_t i = 0; i < min(MaxSkeletonJoints, object.Skeleton.size()); i++)
+			{
+				const ModelLoading::SkeletonJoint& joint = object.Skeleton[i];
+
+				jointTransforms[i] = joint.Transform;
+				jointAnimationTransformations[i] = AnimationOperations::GetAnimationTransformation(joint.Animations, m_AnimationTime, AnimationOperations::AnimationType::Repeat);
+				modelToJointTransforms[i] = joint.ModelToJoint;
+			}
+
+			for (uint32_t i = 0; i < MaxSkeletonJoints; i++) cb.Add(XMUtility::ToHLSLFloat4x4(jointTransforms[i]));
+			for (uint32_t i = 0; i < MaxSkeletonJoints; i++) cb.Add(XMUtility::ToHLSLFloat4x4(jointAnimationTransformations[i]));
+			for (uint32_t i = 0; i < MaxSkeletonJoints; i++) cb.Add(XMUtility::ToHLSLFloat4x4(modelToJointTransforms[i]));
+		}
+
+		state.Table.CBVs[0] = cb.GetBuffer();
+		GFX::Cmd::BindState(context, state);
+		const uint32_t numIndices = object.Indices->ByteSize / object.Indices->Stride;
+		context.CmdList->DrawIndexedInstanced(numIndices, 1, 0, 0, 0);
+	}
+
+	GFX::Cmd::MarkerEnd(context);
+	return m_FinalResult.get();
+}
+
+void AnimationApp::OnUpdate(GraphicsContext& context, float dt)
+{
+	m_Camera.Update(dt);
+
+	constexpr float animationSpeed = 1.0f;
+	m_AnimationTime += dt * animationSpeed / 1000.0f;
+}
+
+void AnimationApp::OnShaderReload(GraphicsContext& context)
+{
+
+}
+
+void AnimationApp::OnWindowResize(GraphicsContext& context)
+{
+	m_FinalResult = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV));
+	m_DepthTexture = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV));
+	m_Camera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
+}

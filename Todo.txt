@@ -1,0 +1,7 @@
+Cloud sample:
+	- Readme
+
+Grass sample:
+	- Readme
+	- Distance aliasing
+	- Big loading times

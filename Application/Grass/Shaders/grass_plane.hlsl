@@ -28,11 +28,8 @@ VertexOUT VS(VertexIN IN)
 	const float3 modelPos = float3(IN.Position.x, height, IN.Position.y);
 	const float3 worldPos = modelPos * PlaneParams.Scale + PlaneParams.Position;
 
-	const float4 viewPos = mul(float4(worldPos, 1.0f), MainCamera.WorldToView);
-	const float4 clipPos = mul(viewPos, MainCamera.ViewToClip);
-
 	VertexOUT OUT;
-	OUT.Position = clipPos;
+	OUT.Position = GetClipPosition(worldPos, MainCamera);
 	return OUT;
 }
 

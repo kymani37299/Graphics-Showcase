@@ -44,7 +44,7 @@ public:
 	std::vector<std::string>& GetSamples() { return m_SampleNames; }
 	
 	void NextSample() { m_PendingSampleIndex = (m_ActiveSampleIndex + 1) % m_NumSamples; }
-	void PreviousSample() { m_PendingSampleIndex = (m_ActiveSampleIndex - 1) % m_NumSamples; }
+	void PreviousSample() { m_PendingSampleIndex = m_ActiveSampleIndex == 0 ? m_NumSamples - 1 : m_ActiveSampleIndex - 1; }
 
 private:
 	void RegisterSamples();

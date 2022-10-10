@@ -60,7 +60,8 @@ static Texture* GenerateWorleyNoise(GraphicsContext& context)
 	state.Table.CBVs.push_back(cbData.GetBuffer());
 	state.Table.SRVs.push_back(pointsBuffer);
 	state.Table.UAVs.push_back(outputTexture);
-	GFX::Cmd::BindShader(state, worleyShader, CS);
+	state.Shader = worleyShader;
+	state.ShaderStages = CS;
 	GFX::Cmd::BindState(context, state);
 
 	static constexpr uint32_t NumWavesPerDim = 8;
@@ -104,9 +105,9 @@ Texture* CloudsApp::OnDraw(GraphicsContext& context)
 	state.Table.CBVs.push_back(cb.GetBuffer());
 	state.Table.SRVs.push_back(m_CloudNoise.get());
 	state.Table.SRVs.push_back(m_CloudDetailNoise.get());
-	GFX::Cmd::BindSampler(state, 0, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR);
-	GFX::Cmd::BindRenderTarget(state, m_FinalResult.get());
-	GFX::Cmd::BindShader(state, m_CloudsShader.get(), VS | PS);
+	state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP });
+	state.Shader = m_CloudsShader.get();
+	state.RenderTargets.push_back(m_FinalResult.get());
 	GFX::Cmd::DrawFC(context, state);
 
 	GFX::Cmd::MarkerEnd(context);

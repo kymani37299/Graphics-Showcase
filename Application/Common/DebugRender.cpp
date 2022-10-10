@@ -20,7 +20,7 @@ namespace DebugRender
 	{
 		constexpr uint32_t parallels = 11;
 		constexpr uint32_t meridians = 22;
-		constexpr float PI = 3.14159265358979323846;
+		constexpr float PI = 3.14159265358979323846f;
 
 		std::vector<Float3> verticesRaw;
 		std::vector<Float3> vertices;
@@ -33,7 +33,7 @@ namespace DebugRender
 			float cp = std::cos(polar);
 			for (uint32_t i = 0; i < meridians; ++i)
 			{
-				float azimuth = 2.0 * PI * float(i) / float(meridians);
+				float azimuth = 2.0f * PI * float(i) / float(meridians);
 				float sa = std::sin(azimuth);
 				float ca = std::cos(azimuth);
 				float x = sp * ca;
@@ -82,7 +82,7 @@ namespace DebugRender
 		}
 
 		ResourceInitData initData{ &context , vertices.data() };
-		return GFX::CreateVertexBuffer<Float3>(vertices.size(), &initData);
+		return GFX::CreateVertexBuffer<Float3>((uint32_t) vertices.size(), &initData);
 	}
 
 	void Init(GraphicsContext& context)
@@ -90,18 +90,18 @@ namespace DebugRender
 		SphereVB = GenerateSphereVB(context);
 		DebugShader = new Shader{ "Application/Common/debug_render.hlsl" };
 
-		GFX::Cmd::BindShader(DebugState, DebugShader, VS | PS);
+		DebugState.Shader = DebugShader;
 		DebugState.VertexBuffers.push_back(SphereVB);
 		DebugState.Table.CBVs.resize(1);
-		DebugState.Pipeline.DepthStencilState.DepthEnable = true;
-		DebugState.Pipeline.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
-		DebugState.Pipeline.BlendState.RenderTarget[0].BlendEnable = true;
-		DebugState.Pipeline.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
-		DebugState.Pipeline.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
-		DebugState.Pipeline.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
-		DebugState.Pipeline.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
-		DebugState.Pipeline.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
-		DebugState.Pipeline.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
+		DebugState.DepthStencilState.DepthEnable = true;
+		DebugState.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+		DebugState.BlendState.RenderTarget[0].BlendEnable = true;
+		DebugState.BlendState.RenderTarget[0].BlendOp = D3D12_BLEND_OP_ADD;
+		DebugState.BlendState.RenderTarget[0].BlendOpAlpha = D3D12_BLEND_OP_MAX;
+		DebugState.BlendState.RenderTarget[0].SrcBlend = D3D12_BLEND_SRC_ALPHA;
+		DebugState.BlendState.RenderTarget[0].DestBlend = D3D12_BLEND_INV_SRC_ALPHA;
+		DebugState.BlendState.RenderTarget[0].SrcBlendAlpha = D3D12_BLEND_SRC_ALPHA;
+		DebugState.BlendState.RenderTarget[0].DestBlendAlpha = D3D12_BLEND_INV_SRC_ALPHA;
 	}
 
 	void Deinit()
@@ -118,8 +118,8 @@ namespace DebugRender
 		cb.Add(radius);
 
 		DebugState.Table.CBVs[0] = cb.GetBuffer();
-		GFX::Cmd::BindRenderTarget(DebugState, colorTarget);
-		GFX::Cmd::BindDepthStencil(DebugState, depthDarget);
+		DebugState.RenderTargets.push_back(colorTarget);
+		DebugState.DepthStencil = depthDarget;
 		GFX::Cmd::BindState(context, DebugState);
 		context.CmdList->DrawInstanced(SphereVB->ByteSize / SphereVB->Stride, 1, 0, 0);
 	}

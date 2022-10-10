@@ -8,17 +8,16 @@
 
 #include "App/GraphicsApplicationGUI.h"
 #include "Common/DebugRender.h"
+#include "Animation/AnimationApp.h"
 #include "Clouds/CloudsApp.h"
 #include "Grass/GrassApp.h"
 
-#define MAX(A,B) ((A>B) ? (A) : (B))
-#define ADD_SAMPLE(Index, Class, Name) m_NumSamples = MAX(m_NumSamples, Index+1); if(m_SampleNames.size() < Index+1) m_SampleNames.resize(Index+1); m_SampleNames[Index] = Name;
+#define ADD_SAMPLE(Index, Class, Name) m_NumSamples = max(m_NumSamples, Index+1); if(m_SampleNames.size() < Index+1) m_SampleNames.resize(Index+1); m_SampleNames[Index] = Name;
 void GraphicsApplication::RegisterSamples()
 {
 #include "App/SampleList.h"
 }
 #undef ADD_SAMPLE
-#undef MAX
 
 #define ADD_SAMPLE(Index, Class, Name) case Index: m_ActiveSample = new Class{}; break;
 void GraphicsApplication::SwitchSample(uint32_t sampleIndex)

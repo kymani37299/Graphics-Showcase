@@ -163,8 +163,8 @@ Texture* GrassApp::OnDraw(GraphicsContext& context)
 
 		GraphicsState state{};
 		state.Table.CBVs.push_back(cb.GetBuffer());
-		GFX::Cmd::BindShader(state, m_BackgroundShader.get(), VS | PS);
-		GFX::Cmd::BindRenderTarget(state, m_FinalResult.get());
+		state.Shader = m_BackgroundShader.get();
+		state.RenderTargets.push_back(m_FinalResult.get());
 		GFX::Cmd::DrawFC(context, state);
 		GFX::Cmd::BindState(context, state);
 		GFX::Cmd::MarkerEnd(context);
@@ -179,14 +179,14 @@ Texture* GrassApp::OnDraw(GraphicsContext& context)
 		cb.Add(planeParams);
 
 		GraphicsState state{};
-		state.Pipeline.DepthStencilState.DepthEnable = true;
+		state.DepthStencilState.DepthEnable = true;
 		state.Table.SRVs.push_back(m_HeightMap.get());
 		state.Table.CBVs.push_back(cb.GetBuffer());
+		state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP });
 		state.VertexBuffers.push_back(m_GrassPlaneVB.get());
-		GFX::Cmd::BindSampler(state, 0, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR);
-		GFX::Cmd::BindShader(state, m_GrassPlaneShader.get(), VS | PS);
-		GFX::Cmd::BindRenderTarget(state, m_FinalResult.get());
-		GFX::Cmd::BindDepthStencil(state, m_DepthTexture.get());
+		state.Shader = m_GrassPlaneShader.get();
+		state.RenderTargets.push_back(m_FinalResult.get());
+		state.DepthStencil = m_DepthTexture.get();
 		GFX::Cmd::BindState(context, state);
 		context.CmdList->DrawInstanced(m_GrassPlaneVB->ByteSize / m_GrassPlaneVB->Stride, 1, 0, 0);
 
@@ -205,9 +205,10 @@ Texture* GrassApp::OnDraw(GraphicsContext& context)
 		GraphicsState state{};
 		state.Table.UAVs.push_back(m_WindTexture.get());
 		state.Table.CBVs.push_back(cb.GetBuffer());
-		GFX::Cmd::BindShader(state, m_WindShader.get(), CS);
+		state.Shader = m_WindShader.get();
+		state.ShaderStages = CS;
 		GFX::Cmd::BindState(context, state);
-		context.CmdList->Dispatch(MathUtility::CeilDiv(m_WindTexture->Width, 8), MathUtility::CeilDiv(m_WindTexture->Width, 8), 1);
+		context.CmdList->Dispatch(MathUtility::CeilDiv(m_WindTexture->Width, 8u), MathUtility::CeilDiv(m_WindTexture->Width, 8u), 1);
 
 		GFX::Cmd::MarkerEnd(context);
 	}
@@ -224,17 +225,16 @@ Texture* GrassApp::OnDraw(GraphicsContext& context)
 		cb.Add(SkyColor.ToXMF());
 
 		GraphicsState state{};
-		state.Pipeline.DepthStencilState.DepthEnable = true;
+		state.DepthStencilState.DepthEnable = true;
 		state.Table.CBVs.push_back(cb.GetBuffer());
 		state.Table.SRVs.push_back(nullptr);
 		state.Table.SRVs.push_back(m_WindTexture.get());
 		state.Table.SRVs.push_back(m_HeightMap.get());
-		state.VertexBuffers.resize(1);
-
-		GFX::Cmd::BindSampler(state, 0, D3D12_TEXTURE_ADDRESS_MODE_WRAP, D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR);
-		GFX::Cmd::BindShader(state, m_GrassShader.get(), VS | PS);
-		GFX::Cmd::BindRenderTarget(state, m_FinalResult.get());
-		GFX::Cmd::BindDepthStencil(state, m_DepthTexture.get());
+		state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP });
+		state.VertexBuffers.resize(2);
+		state.Shader = m_GrassShader.get();
+		state.RenderTargets.push_back(m_FinalResult.get());
+		state.DepthStencil = m_DepthTexture.get();
 
 		GrassStats.PatchesDrawn = 0;
 		for (uint32_t i = 0; i < GrassPatchSubdivision; i++)
@@ -248,12 +248,14 @@ Texture* GrassApp::OnDraw(GraphicsContext& context)
 				const float patchHeightDistance = m_Camera.Position.y - GrassGenConfig.PlanePosition.y - GrassGenConfig.PlaneScale.y;
 				if (patchDistance > lowpolyTreshold || patchHeightDistance > lowpolyHeightTreshold)
 				{
-					state.VertexBuffers[0] = m_GrassObject_LowPoly.Vertices;
+					state.VertexBuffers[0] = m_GrassObject_LowPoly.Positions;
+					state.VertexBuffers[1] = m_GrassObject_LowPoly.Texcoords;
 					state.IndexBuffer = m_GrassObject_LowPoly.Indices;
 				}
 				else
 				{
-					state.VertexBuffers[0] = m_GrassObject_HighPoly.Vertices;
+					state.VertexBuffers[0] = m_GrassObject_HighPoly.Positions;
+					state.VertexBuffers[1] = m_GrassObject_HighPoly.Texcoords;
 					state.IndexBuffer = m_GrassObject_HighPoly.Indices;
 				}
 
