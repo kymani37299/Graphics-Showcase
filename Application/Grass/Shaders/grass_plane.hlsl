@@ -15,6 +15,7 @@ cbuffer Constants : register(b0)
 {
 	Camera MainCamera;
 	PlaneParamsCB PlaneParams;
+	float3 FogColor;
 }
 
 SamplerState s_LinearWrap : register(s0);
@@ -33,7 +34,20 @@ VertexOUT VS(VertexIN IN)
 	return OUT;
 }
 
+void ApplyFog(inout float3 color, in float depth)
+{
+	const float FogStart = 0.98f;
+	const float FogEnd = 1.0f;
+
+	const float distance = 1.0f - depth;
+	const float fogFactor = smoothstep(FogStart, FogEnd, distance);
+
+	color = lerp(color, FogColor, fogFactor);
+}
+
 float4 PS(VertexOUT IN) : SV_Target
 {
-	return float4(PlaneParams.Color, 1.0f);
+	float3 finalColor = PlaneParams.Color;
+	ApplyFog(finalColor, IN.Position.z / IN.Position.w);
+	return float4(finalColor, 1.0f);
 }

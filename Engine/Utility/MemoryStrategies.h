@@ -2,6 +2,7 @@
 
 #include <stack>
 #include <list>
+#include <mutex>
 
 static constexpr size_t INVALID_ALLOCATION = static_cast<size_t>(-1);
 
@@ -42,7 +43,8 @@ public:
 
 	bool CanAllocate(size_t numElements)
 	{
-		return m_FreeAllocations.size() + (m_NumElements - m_NextAllocation) > numElements;
+		bool canAlloocate = m_FreeAllocations.size() + (m_NumElements - m_NextAllocation) > numElements;
+		return canAlloocate;
 	}
 
 	void Release(size_t alloc)

@@ -3,14 +3,19 @@
 #include <unordered_map>
 
 #include "Render/RenderAPI.h"
-#include "Render/Memory.h"
+#include "Render/DescriptorHeap.h"
 #include "Render/Shader.h"
+#include "Utility/MathUtility.h"
 #include "System/ApplicationConfiguration.h"
 
+enum class RCF : uint64_t;
 struct Resource;
 struct Buffer;
+class ReadbackBuffer;
 struct Texture;
+struct TextureSubresource;
 struct Shader;
+struct GraphicsContext;
 
 struct Fence
 {
@@ -21,22 +26,61 @@ struct Fence
 struct MemoryContext
 {
 	// Pernament descriptors
-	DescriptorHeapGPU SRVHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, 1 };
-	DescriptorHeapGPU SMPHeap{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, 1 };
+	DescriptorHeap SRVHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 1, 1 };
+	DescriptorHeap SMPHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1, 1 };
+
+	// Frame resources
+	std::vector<ComPtr<IUnknown>> FrameDXResources;
+	std::vector<DescriptorAllocation> FrameDescriptors;
+	std::vector<Shader*> FrameShaders;
+	std::vector<Resource*> FrameResources;
 };
 
 struct Sampler
 {
-	D3D12_FILTER Filter;
-	D3D12_TEXTURE_ADDRESS_MODE AddressMode;
+	D3D12_FILTER Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	D3D12_TEXTURE_ADDRESS_MODE AddressMode = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+	Float4 BorderColor{ 0.0f, 0.0f, 0.0f, 0.0f };
+};
+
+template<typename T, size_t Size = 128>
+class BindVector
+{
+public:
+	BindVector() { m_Descriptors.resize(Size+1); }
+
+	T* begin() { return &m_Descriptors[0]; }
+	T* end() { return &m_Descriptors[m_DescriptorCount]; }
+	const T* begin() const { return &m_Descriptors[0]; }
+	const T* end() const { return &m_Descriptors[m_DescriptorCount]; }
+
+	bool empty() const { return m_DescriptorCount == 0; }
+	size_t size() const { return m_DescriptorCount; }
+	const void* data() const { return m_Descriptors.data(); }
+
+	const T& operator [] (size_t index) const { return m_Descriptors[index]; }
+
+	T& operator [] (size_t index)
+	{
+		const size_t reqSize = index + 1;
+		if (reqSize > m_DescriptorCount)
+		{
+			m_DescriptorCount = reqSize;
+		}
+		return m_Descriptors[index];
+	}
+
+private:
+	size_t m_DescriptorCount = 0;
+	std::vector<T> m_Descriptors;
 };
 
 struct BindTable
 {
-	std::vector<Resource*> CBVs;
-	std::vector<Resource*> SRVs;
-	std::vector<Resource*> UAVs;
-	std::vector<Sampler>   SMPs;
+	BindVector<Resource*> CBVs;
+	BindVector<Resource*> SRVs;
+	BindVector<Resource*> UAVs;
+	BindVector<Sampler>   SMPs;
 };
 
 struct BindlessTable
@@ -63,17 +107,25 @@ enum class RenderPrimitiveType
 	PatchList,
 };
 
+union PushConstantValue
+{
+	int32_t Int;
+	uint32_t Uint;
+	float Float;
+};
+using PushConstantTable = BindVector<PushConstantValue>;
+
 struct GraphicsState
 {
 	// Bindings
 	BindTable Table;
 	Buffer* IndexBuffer = nullptr;
-	std::vector<Buffer*> VertexBuffers;
-	std::vector<Texture*> RenderTargets;
+	BindVector<Buffer*, 8> VertexBuffers;
+	BindVector<Texture*, 8> RenderTargets;
 	Texture* DepthStencil = nullptr;
+	BindVector<BindlessTable> BindlessTables = {};
 	uint32_t PushConstantBinding = 128;
-	std::vector<BindlessTable> BindlessTables = {};
-	std::vector<uint32_t> PushConstants;
+	uint32_t PushConstantCount = 0;
 
 	// Shader
 	Shader* Shader = nullptr;
@@ -99,7 +151,32 @@ struct GraphicsState
 	GraphicsState();
 };
 
-// Not using: Table, Pipeline, PushConstants, Samplers
+class StagingResourcesContext
+{
+public:
+	struct StagingTextureRequest
+	{
+		uint32_t Width;
+		uint32_t Height;
+		uint32_t NumMips;
+		RCF CreationFlags;
+		DXGI_FORMAT Format;
+	};
+
+	struct StagingTexture
+	{
+		Texture* TextureResource;
+	};
+
+	// Same texture can be used multiple times in frame since all is on GPU timeline
+	StagingTexture* GetTransientTexture(const StagingTextureRequest& request);
+
+	void ClearTransientTextures(GraphicsContext& context);
+
+private:
+	std::unordered_map<uint32_t, StagingTexture*> m_TransientStagingTextures;
+};
+
 struct BoundGraphicsState
 {
 	bool Valid = false;
@@ -108,14 +185,24 @@ struct BoundGraphicsState
 
 struct GraphicsContext
 {
+	~GraphicsContext();
+	ID3D12CommandSignature* ApplyState(const GraphicsState& state);
+
+	bool Closed = false;
 	ComPtr<ID3D12CommandQueue> CmdQueue;
 	ComPtr<ID3D12CommandAllocator> CmdAlloc;
 	ComPtr<ID3D12GraphicsCommandList> CmdList;
 	MemoryContext MemContext;
 	Fence CmdFence;
 
+	std::vector<ReadbackBuffer*> PendingReadbacks;
+
+	// Cache
+	std::unordered_map<uint32_t, ComPtr<ID3D12RootSignature>> RootSignatureCache;
+	std::unordered_map<uint32_t, ComPtr<ID3D12PipelineState>> PSOCache;
+	std::unordered_map<uint32_t, DescriptorAllocation> SamplerCache;
+
+	StagingResourcesContext StagingResources;
+
 	BoundGraphicsState BoundState;
 };
-
-void ReleaseContextCache();
-ID3D12CommandSignature* ApplyGraphicsState(GraphicsContext& context, const GraphicsState& state);

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Engine/Gui/GUI.h>
-#include <Engine/Gui/ImGui.h>
+#include <Engine/Gui/ImGui_Core.h>
 
 #include "App/GraphicsApplication.h"
 
@@ -9,7 +9,7 @@ class GraphicsApplicationGUI : public GUIElement
 {
 public:
 	GraphicsApplicationGUI(GraphicsApplication* application) :
-		GUIElement("Samples", true),
+		GUIElement("Samples"),
 		m_Application(application)
 	{ }
 
@@ -42,7 +42,7 @@ class ControlsGUI : public GUIElement
 {
 public:
 	ControlsGUI() :
-		GUIElement("Controls", true)
+		GUIElement("Controls", GUIFlags::ShowOnStart)
 	{ }
 
 	void Update(float dt) override {}
@@ -63,7 +63,7 @@ protected:
 class RenderStatsGUI : public GUIElement
 {
 public:
-	RenderStatsGUI() : GUIElement("Render stats", true) {}
+	RenderStatsGUI() : GUIElement("Render stats", GUIFlags::ShowOnStart) {}
 
 	void Update(float dt) override
 	{

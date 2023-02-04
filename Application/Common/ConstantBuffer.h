@@ -5,6 +5,7 @@
 #include <Engine/Common.h>
 
 struct Buffer;
+struct GraphicsContext;
 
 class ConstantBuffer
 {
@@ -18,7 +19,7 @@ public:
 
 	}
 
-	Buffer* GetBuffer();
+	Buffer* GetBuffer(GraphicsContext& context);
 
 private:
 	void AddInternal(const uint8_t* data, uint32_t stride);

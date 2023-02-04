@@ -43,7 +43,7 @@ void AnimationApp::OnInit(GraphicsContext& context)
 
 	m_GeometryShader = ScopedRef<Shader>(new Shader{ "Application/Animation/geometry.hlsl" });
 	m_BackgroundShader = ScopedRef<Shader>(new Shader("Application/Animation/background.hlsl"));
-	m_EmptyBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(1, 1, RCF_None));
+	m_EmptyBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(1, 1, RCF::None));
 
 	m_Camera.Position = Float3(0.5f, 0.7f, 15.0f);
 	m_Camera.Rotation = Float3(-0.15f, -1.6f, 0.0f);
@@ -75,30 +75,26 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 		cb.Add(SkyColor);
 
 		GraphicsState state{};
-		state.Table.CBVs.push_back(cb.GetBuffer());
+		state.Table.CBVs[0] = cb.GetBuffer(context);
 		state.Shader = m_BackgroundShader.get();
-		state.RenderTargets.push_back(m_FinalResult.get());
+		state.RenderTargets[0] = m_FinalResult.get();
 		GFX::Cmd::DrawFC(context, state);
-		GFX::Cmd::BindState(context, state);
+		context.ApplyState(state);
 		GFX::Cmd::MarkerEnd(context);
 	}
 
 	GFX::Cmd::MarkerBegin(context, "Geometry");
 
 	GraphicsState state{};
-	
-	state.RenderTargets.push_back(m_FinalResult.get());
+	state.RenderTargets[0] = m_FinalResult.get();
 	state.DepthStencil = m_DepthTexture.get();
 	state.DepthStencilState.DepthEnable = true;
-	state.Table.CBVs.resize(1);
-	state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP });
+	state.Table.SMPs[0] = Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 	
 	for (const ModelLoading::SceneObject& object : m_SceneObjects)
 	{
-		state.Table.SRVs.clear();
 		state.ShaderConfig.clear();
-		state.VertexBuffers.clear();
-
+		
 		DirectX::XMFLOAT4X4 animationTransform = AnimationOperations::GetAnimationTransformation(object.AnimcationData, m_AnimationTime, AnimationOperations::AnimationType::Repeat);
 		
 		ConstantBuffer cb{};
@@ -107,10 +103,10 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 		cb.Add(XMUtility::ToHLSLFloat4x4(object.ModelToWorld));
 		cb.Add(object.AlbedoFactor);
 
-		state.Table.SRVs.push_back(object.Albedo);
-		state.VertexBuffers.push_back(object.Positions);
-		state.VertexBuffers.push_back(object.Texcoords);
-		state.VertexBuffers.push_back(object.Normals);
+		state.Table.SRVs[0] = object.Albedo;
+		state.VertexBuffers[0] = object.Positions;
+		state.VertexBuffers[1] = object.Texcoords;
+		state.VertexBuffers[2] = object.Normals;
 		state.IndexBuffer = object.Indices;
 		state.Shader = m_GeometryShader.get();
 
@@ -134,10 +130,11 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 			const uint32_t numWeights = min((uint32_t) morphWeights.size(), MaxMorphWeights);
 			
 			cb.Add(numWeights);
+			const uint32_t morphTargetsBinding = 1;
 			for (uint32_t i = 0; i < MaxMorphWeights; i++)
 			{
 				cb.Add(i < numWeights ? morphWeights[i] : 0.0f);
-				state.Table.SRVs.push_back(i < numWeights ? object.MorphTargets[i].Data : m_EmptyBuffer.get());
+				state.Table.SRVs[i+ morphTargetsBinding] = i < numWeights ? object.MorphTargets[i].Data : m_EmptyBuffer.get();
 			}
 		}
 
@@ -149,8 +146,8 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 			ASSERT(object.Skeleton.size() < MaxSkeletonJoints, "Too much skeleton joints!");
 
 			state.ShaderConfig.push_back("APPLY_SKIN");
-			state.VertexBuffers.push_back(object.Weights);
-			state.VertexBuffers.push_back(object.Joints);
+			state.VertexBuffers[3] = object.Weights;
+			state.VertexBuffers[4] = object.Joints;
 
 			std::vector<DirectX::XMFLOAT4X4> jointTransforms;
 			std::vector<DirectX::XMFLOAT4X4> jointAnimationTransformations;
@@ -173,8 +170,8 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 			for (uint32_t i = 0; i < MaxSkeletonJoints; i++) cb.Add(XMUtility::ToHLSLFloat4x4(modelToJointTransforms[i]));
 		}
 
-		state.Table.CBVs[0] = cb.GetBuffer();
-		GFX::Cmd::BindState(context, state);
+		state.Table.CBVs[0] = cb.GetBuffer(context);
+		context.ApplyState(state);
 		const uint32_t numIndices = object.Indices->ByteSize / object.Indices->Stride;
 		context.CmdList->DrawIndexedInstanced(numIndices, 1, 0, 0, 0);
 	}
@@ -198,7 +195,7 @@ void AnimationApp::OnShaderReload(GraphicsContext& context)
 
 void AnimationApp::OnWindowResize(GraphicsContext& context)
 {
-	m_FinalResult = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV));
-	m_DepthTexture = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_DSV));
+	m_FinalResult = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF::RTV));
+	m_DepthTexture = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF::DSV));
 	m_Camera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
 }

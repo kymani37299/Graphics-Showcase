@@ -3,8 +3,6 @@
 #include "Render/RenderAPI.h"
 #include "Render/Resource.h"
 
-struct GraphicsContext;
-
 struct Texture : public Resource
 {
 	DXGI_FORMAT Format;
@@ -17,26 +15,29 @@ struct Texture : public Resource
 	uint32_t SlicePitch;
 };
 
-struct TextureSubresource : public Texture
+struct TextureSubresourceView : public Texture
 {
+	Resource* Parent;
+
 	uint32_t FirstMip;
-	uint32_t MipCount;
+	uint32_t LastMip;
 
 	uint32_t FirstElement;
-	uint32_t ElementCount;
+	uint32_t LastElement;
 };
 
 namespace GFX
 {
-	Texture* CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, ResourceInitData* initData = nullptr);
-	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, std::vector<ResourceInitData*> initData = {});
+	Texture* CreateTexture(uint32_t width, uint32_t height, RCF creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, ResourceInitData* initData = nullptr);
+	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, RCF creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM, std::vector<ResourceInitData*> initData = {});
 
-	inline Texture* CreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, uint64_t creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM)
+	inline Texture* CreateTexture3D(uint32_t width, uint32_t height, uint32_t depth, RCF creationFlags, uint32_t numMips = 1, DXGI_FORMAT format = DXGI_FORMAT_R8G8B8A8_UNORM)
  	{
-		return CreateTextureArray(width, height, depth, creationFlags | RCF_Texture3D, numMips, format);
+		return CreateTextureArray(width, height, depth, creationFlags | RCF::Texture3D, numMips, format);
 	}
 
-	TextureSubresource* CreateTextureSubresource(Texture* resource, uint32_t mipBegin, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount);
-
+	// After finishing make sure to bring back ResourceState as it was at the beggining
+	TextureSubresourceView* GetTextureSubresource(Texture* resource, uint32_t firstMip, uint32_t lastMip, uint32_t firstElement, uint32_t lastElement);
+	
 	uint32_t GetSubresourceIndex(Texture* texture, uint32_t mipIndex, uint32_t sliceOrArrayIndex);
 }

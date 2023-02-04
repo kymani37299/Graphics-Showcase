@@ -12,7 +12,6 @@
 #include "Render/Texture.h"
 #include "Render/Context.h"
 #include "Render/Commands.h"
-#include "Render/Memory.h"
 #include "Render/RenderThread.h"
 #include "Loading/TextureLoading.h"
 #include "Utility/PathUtility.h"
@@ -432,7 +431,7 @@ namespace ModelLoading
 
 			MorphTarget targetData{};
 			targetData.Weight = weights[targetIndex];
-			targetData.Data = GFX::CreateBuffer(vertices.NumVertices * sizeof(MorphVertex), sizeof(MorphVertex), RCF_None, &initData);
+			targetData.Data = GFX::CreateBuffer(vertices.NumVertices * sizeof(MorphVertex), sizeof(MorphVertex), RCF::None, &initData);
 
 			m_Object.MorphTargets.push_back(targetData);
 		}
@@ -500,7 +499,7 @@ namespace ModelLoading
 				data = defaultData.data();
 			}
 			ResourceInitData initData{ &this->m_Context, data };
-			return GFX::CreateBuffer(numElements * stride, stride, RCF_None, &initData);
+			return GFX::CreateBuffer(numElements * stride, stride, RCF::None, &initData);
 		};
 
 		m_Object.Positions = createBuffer(vertices.Positions, sizeof(DirectX::XMFLOAT3), vertCount);
@@ -551,19 +550,19 @@ namespace ModelLoading
 		{
 			const std::string textureURI = textureData->image->uri;
 			const std::string texturePath = m_DirectoryPath + "/" + textureURI;
-			return TextureLoading::LoadTexture(m_Context, texturePath, RCF_None, m_TextureNumMips);
+			return TextureLoading::LoadTexture(m_Context, texturePath, RCF::None, m_TextureNumMips);
 		}
 		else
 		{
 			ResourceInitData initData = { &m_Context, &defaultColor };
-			return GFX::CreateTexture(1, 1, RCF_None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData);
+			return GFX::CreateTexture(1, 1, RCF::None, 1, DXGI_FORMAT_R8G8B8A8_UNORM, &initData);
 		}
 	}
 
 	template<typename T>
 	static void Free(T** res)
 	{
-		if (*res) DeferredTrash::Put(*res);
+		if (*res) GFX::Cmd::Delete(Device::Get()->GetContext(), *res);
 		*res = nullptr;
 	}
 
@@ -582,7 +581,7 @@ namespace ModelLoading
 
 		for (MorphTarget& morphTarget : sceneObject.MorphTargets)
 		{
-			DeferredTrash::Put(morphTarget.Data);
+			GFX::Cmd::Delete(Device::Get()->GetContext(), morphTarget.Data);
 		}
 	}
 	

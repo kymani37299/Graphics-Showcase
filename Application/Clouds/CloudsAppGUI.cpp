@@ -2,7 +2,7 @@
 
 #include <Engine/Render/Device.h>
 #include <Engine/Gui/GUI.h>
-#include <Engine/Gui/ImGui.h>
+#include <Engine/Gui/ImGui_Core.h>
 
 #include "Clouds/CloudsApp.h"
 #include "Clouds/Settings.h"
@@ -12,7 +12,7 @@ namespace CloudsAppGUI
 	class CloudSettingsGUI : public GUIElement
 	{
 	public:
-		CloudSettingsGUI() : GUIElement("Cloud settings", false) {}
+		CloudSettingsGUI() : GUIElement("Cloud settings", GUIFlags::None) {}
 		void Update(float dt) override {}
 
 		void Render() override
@@ -70,7 +70,7 @@ namespace CloudsAppGUI
 	class SunSettingsGUI : public GUIElement
 	{
 	public:
-		SunSettingsGUI() : GUIElement("Sun settings", false) {}
+		SunSettingsGUI() : GUIElement("Sun settings", GUIFlags::None) {}
 		void Update(float dt) override {}
 
 		void Render() override
@@ -83,7 +83,7 @@ namespace CloudsAppGUI
 	struct CloudNoiseSettingsGUI : public GUIElement
 	{
 	public:
-		CloudNoiseSettingsGUI(CloudsApp* cloudsApp) : GUIElement("Cloud noise settings", false) 
+		CloudNoiseSettingsGUI(CloudsApp* cloudsApp) : GUIElement("Cloud noise settings", GUIFlags::None)
 		{
 			m_App = cloudsApp;
 		}

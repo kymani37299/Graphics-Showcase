@@ -4,4 +4,6 @@ Cloud sample:
 Grass sample:
 	- Readme
 	- Distance aliasing
-	- Big loading times
+	- Better wind animation
+	- Different grass models
+	- Depth prepass ?

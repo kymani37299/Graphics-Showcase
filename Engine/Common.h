@@ -29,3 +29,16 @@ template<typename T> inline static constexpr T IntToEnum(uint32_t intValue) { re
 
 template<typename T> using ScopedRef = std::unique_ptr<T>;
 template<typename T> using Ref = std::shared_ptr<T>;
+
+#define DEFINE_ENUM_CLASS_FLAGS_EX(T, T_PARENT)																			\
+enum class T : T_PARENT;																								\
+inline T operator & (T a, T b)		{ return static_cast<T>(static_cast<T_PARENT>(a) & static_cast<T_PARENT>(b));};		\
+inline T operator |	(T a, T b)		{ return static_cast<T>(static_cast<T_PARENT>(a) | static_cast<T_PARENT>(b)); };	\
+inline T operator ^	(T a, T b)		{ return static_cast<T>(static_cast<T_PARENT>(a) ^ static_cast<T_PARENT>(b)); };	\
+inline T operator ~	(T a)			{ return static_cast<T>(~static_cast<T_PARENT>(a)); };								\
+inline T& operator &= (T& a, T b)	{ a = a & b;	return a;};															\
+inline T& operator |= (T& a, T b)	{ a = a | b;	return a;};															\
+inline T& operator ^= (T& a, T b)	{ a = a ^ b;	return a;};															\
+inline bool TestFlag(T a, T b)		{ return static_cast<T_PARENT>(a & b) != 0; }
+
+#define DEFINE_ENUM_CLASS_FLAGS(T) DEFINE_ENUM_CLASS_FLAGS_EX(T, uint32_t)

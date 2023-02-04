@@ -1,9 +1,15 @@
 #pragma once
 
-class GrassApp;
-
 namespace GrassAppGUI
 {
-	void AddGUI(GrassApp* app);
+	struct Requests
+	{
+		bool RegenerateGrass = false;
+		bool ToggleWindTexture = false;
+	};
+
+	void AddGUI();
 	void RemoveGUI();
+
+	extern Requests GUIRequests;
 }

@@ -8,25 +8,44 @@
 struct GraphicsContext;
 struct Texture;
 
+DEFINE_ENUM_CLASS_FLAGS(GUIFlags);
+enum class GUIFlags : uint32_t
+{
+	None = 0,
+	ShowOnStart = 1, // Always set open it on start of application
+	MenuHidden = 2,  // Not visible in menus, must be triggered in code
+	OnlyButton = 4, // 
+};
+
 class GUIElement
 {
 public:
-	GUIElement(const std::string name, bool shown): m_Name(name), m_Shown(shown) {}
+	GUIElement(const std::string name, GUIFlags flags = GUIFlags::None):
+		m_Name(name), 
+		m_Shown(TestFlag(flags, GUIFlags::ShowOnStart)),
+		m_Flags(flags)
+	{}
+
 	virtual ~GUIElement() {}
 
-	virtual void Reset() {}
-	virtual void Update(float dt) = 0;
+	virtual void Update(float dt) {};
 	void RenderElement();
+
+	virtual void Reset() {}
+	virtual void OnMenuButtonPress() {}
 
 	std::string GetName() const { return m_Name; }
 	bool& GetShownRef() { return m_Shown; }
 
+	GUIFlags GetFlags() const { return m_Flags; }
+
 protected:
-	virtual void Render() = 0;
+	virtual void Render() {};
 
 private:
 	std::string m_Name = "";
 	bool m_Shown = false;
+	GUIFlags m_Flags;
 };
 
 class GUI
@@ -61,7 +80,7 @@ public:
 	bool HandleWndProc(void* hwnd, unsigned int msg, unsigned int wparam, long lparam);
 
 	void Update(float dt);
-	void Render(GraphicsContext& context, Texture* renderTarget);
+	void Render(GraphicsContext& context);
 	void Reset();
 
 	inline void SetVisible(bool value) { m_Visible = value; }

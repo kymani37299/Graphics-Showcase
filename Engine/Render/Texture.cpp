@@ -3,7 +3,8 @@
 #include "Render/Commands.h"
 #include "Render/Device.h"
 #include "Render/Resource.h"
-#include "Render/Memory.h"
+#include "Render/DescriptorHeap.h"
+#include "Utility/Hash.h"
 
 namespace GFX
 {
@@ -30,9 +31,9 @@ namespace GFX
 	constexpr DXGI_FORMAT DepthFormat = DXGI_FORMAT_D24_UNORM_S8_UINT;
 	constexpr DXGI_FORMAT DepthViewFormat = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
 
-	static D3D12_CPU_DESCRIPTOR_HANDLE CreateSRV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
+	static DescriptorAllocation CreateSRV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
 	{
-		D3D12_CPU_DESCRIPTOR_HANDLE SRV = Device::Get()->GetMemory().SRVHeap->Allocate();
+		DescriptorAllocation SRV = Device::Get()->GetMemory().SRVHeap->Allocate();
 
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
 		srvDesc.Format = texture->Format;
@@ -43,14 +44,14 @@ namespace GFX
 			srvDesc.Format = DepthViewFormat;
 		}
 
-		if (texture->DepthOrArraySize == 6 && texture->CreationFlags & RCF_Cubemap)
+		if (texture->DepthOrArraySize == 6 && TestFlag(texture->CreationFlags, RCF::Cubemap))
 		{
 			srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
 			srvDesc.TextureCube.MipLevels = mipCount;
 			srvDesc.TextureCube.MostDetailedMip = firstMip;
 			srvDesc.TextureCube.ResourceMinLODClamp = 0.0f;
 		}
-		else if (texture->CreationFlags & RCF_Texture3D)
+		else if (TestFlag(texture->CreationFlags, RCF::Texture3D))
 		{
 			ASSERT(!GetSampleCount(texture->CreationFlags) != 1, "MS Texutre3D SRV not implemented");
 
@@ -80,14 +81,14 @@ namespace GFX
 			srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 		}
 
-		Device::Get()->GetHandle()->CreateShaderResourceView(texture->Handle.Get(), &srvDesc, SRV);
+		Device::Get()->GetHandle()->CreateShaderResourceView(texture->Handle.Get(), &srvDesc, SRV.GetCPUHandle());
 
 		return SRV;
 	}
 
-	static D3D12_CPU_DESCRIPTOR_HANDLE CreateUAV(Texture* texture, uint32_t firstMip, uint32_t firstElementOrSlice, uint32_t numSlices)
+	static DescriptorAllocation CreateUAV(Texture* texture, uint32_t firstMip, uint32_t firstElementOrSlice, uint32_t numSlices)
 	{
-		D3D12_CPU_DESCRIPTOR_HANDLE UAV = Device::Get()->GetMemory().SRVHeap->Allocate();
+		DescriptorAllocation UAV = Device::Get()->GetMemory().SRVHeap->Allocate();
 
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 		uavDesc.Format = texture->Format;
@@ -97,7 +98,7 @@ namespace GFX
 			uavDesc.Format = DepthViewFormat;
 		}
 
-		if (texture->CreationFlags & RCF_Texture3D)
+		if (TestFlag(texture->CreationFlags, RCF::Texture3D))
 		{
 			uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
 			uavDesc.Texture3D.FirstWSlice = firstElementOrSlice;
@@ -119,53 +120,53 @@ namespace GFX
 			uavDesc.Texture2D.PlaneSlice = 0;
 		}
 
-		Device::Get()->GetHandle()->CreateUnorderedAccessView(texture->Handle.Get(), nullptr, &uavDesc, UAV);
+		Device::Get()->GetHandle()->CreateUnorderedAccessView(texture->Handle.Get(), nullptr, &uavDesc, UAV.GetCPUHandle());
 
 		return UAV;
 	}
 
-	static D3D12_CPU_DESCRIPTOR_HANDLE CreateRTV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
+	static DescriptorAllocation CreateRTV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
 	{
-		ASSERT(!(texture->CreationFlags & RCF_Texture3D), "RTV not implemented for Texture3D!");
+		ASSERT(!TestFlag(texture->CreationFlags, RCF::Texture3D), "RTV not implemented for Texture3D!");
 		ASSERT(texture->DepthOrArraySize == 1, "RTV not implemented for TextureArray!");
 
-		D3D12_CPU_DESCRIPTOR_HANDLE RTV = Device::Get()->GetMemory().RTVHeap->Allocate();
+		DescriptorAllocation RTV = Device::Get()->GetMemory().RTVHeap->Allocate();
 
 		D3D12_RENDER_TARGET_VIEW_DESC rtvDesc{};
 		rtvDesc.Format = texture->Format;
 		rtvDesc.ViewDimension = GetSampleCount(texture->CreationFlags) != 1 ? D3D12_RTV_DIMENSION_TEXTURE2DMS : D3D12_RTV_DIMENSION_TEXTURE2D;
 		rtvDesc.Texture2D.MipSlice = firstMip;
 		rtvDesc.Texture2D.PlaneSlice = 0;
-		Device::Get()->GetHandle()->CreateRenderTargetView(texture->Handle.Get(), &rtvDesc, RTV);
+		Device::Get()->GetHandle()->CreateRenderTargetView(texture->Handle.Get(), &rtvDesc, RTV.GetCPUHandle());
 
 		return RTV;
 	}
 
-	static D3D12_CPU_DESCRIPTOR_HANDLE CreateDSV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
+	static DescriptorAllocation CreateDSV(Texture* texture, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
 	{
 		ASSERT(texture->DepthOrArraySize == 1, "DSV not implemented for TextureArray!");
 
-		D3D12_CPU_DESCRIPTOR_HANDLE DSV = Device::Get()->GetMemory().DSVHeap->Allocate();
+		DescriptorAllocation DSV = Device::Get()->GetMemory().DSVHeap->Allocate();
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
 		dsvDesc.Format = DepthFormat;
 		dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
 		dsvDesc.ViewDimension = GetSampleCount(texture->CreationFlags) != 1 ? D3D12_DSV_DIMENSION_TEXTURE2DMS : D3D12_DSV_DIMENSION_TEXTURE2D;
 		dsvDesc.Texture2D.MipSlice = firstMip;
-		Device::Get()->GetHandle()->CreateDepthStencilView(texture->Handle.Get(), &dsvDesc, DSV);
+		Device::Get()->GetHandle()->CreateDepthStencilView(texture->Handle.Get(), &dsvDesc, DSV.GetCPUHandle());
 
 		return DSV;
 	}
 
 	static void CreateTextureResources(Texture* texture, ResourceInitData* initData)
 	{
-		if (texture->CreationFlags & RCF_Bind_DSV) texture->Format = DepthFormat;
+		if (TestFlag(texture->CreationFlags, RCF::DSV)) texture->Format = DepthFormat;
 
 		Device* device = Device::Get();
 		DeviceMemory& memory = device->GetMemory();
 
 		D3D12_RESOURCE_DESC resourceDesc{};
-		resourceDesc.Dimension = texture->CreationFlags & RCF_Texture3D ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+		resourceDesc.Dimension = TestFlag(texture->CreationFlags, RCF::Texture3D) ? D3D12_RESOURCE_DIMENSION_TEXTURE3D : D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 		resourceDesc.Alignment = 0;
 		resourceDesc.Width = texture->Width;
 		resourceDesc.Height = texture->Height;
@@ -178,7 +179,7 @@ namespace GFX
 		resourceDesc.SampleDesc.Quality = 0;
 
 		ScopedRef<D3D12_CLEAR_VALUE> clearValue = nullptr;
-		if (texture->CreationFlags & RCF_Bind_RTV)
+		if (TestFlag(texture->CreationFlags, RCF::RTV))
 		{
 			clearValue = ScopedRef<D3D12_CLEAR_VALUE>(new D3D12_CLEAR_VALUE{});
 			clearValue->Color[0] = 0.0f;
@@ -187,7 +188,7 @@ namespace GFX
 			clearValue->Color[3] = 0.0f;
 			clearValue->Format = texture->Format;
 		}
-		else if(texture->CreationFlags & RCF_Bind_DSV)
+		else if(TestFlag(texture->CreationFlags, RCF::DSV))
 		{
 			clearValue = ScopedRef<D3D12_CLEAR_VALUE>(new D3D12_CLEAR_VALUE{});
 			clearValue->DepthStencil = { 1.0f, 0 };
@@ -200,13 +201,13 @@ namespace GFX
 
 		if (initData) GFX::Cmd::UploadToTexture(*initData->Context, initData->Data, texture, 0);
 
-		texture->SRV = CreateSRV(texture, 0, -1, 0, texture->DepthOrArraySize);
-		if (texture->CreationFlags & RCF_Bind_UAV) texture->UAV = CreateUAV(texture, 0, 0, texture->DepthOrArraySize);
-		if (texture->CreationFlags & RCF_Bind_RTV && !(texture->CreationFlags & RCF_Cubemap)) texture->RTV = CreateRTV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
-		if (texture->CreationFlags & RCF_Bind_DSV && !(texture->CreationFlags & RCF_Cubemap)) texture->DSV = CreateDSV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
+		if(!TestFlag(texture->CreationFlags, RCF::NoSRV)) texture->SRV = CreateSRV(texture, 0, -1, 0, texture->DepthOrArraySize);
+		if (TestFlag(texture->CreationFlags, RCF::UAV)) texture->UAV = CreateUAV(texture, 0, 0, texture->DepthOrArraySize);
+		if (TestFlag(texture->CreationFlags, RCF::RTV) && !TestFlag(texture->CreationFlags, RCF::Cubemap)) texture->RTV = CreateRTV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
+		if (TestFlag(texture->CreationFlags, RCF::DSV) && !TestFlag(texture->CreationFlags, RCF::Cubemap)) texture->DSV = CreateDSV(texture, 0, texture->NumMips, -1, texture->DepthOrArraySize);
 	}
 
-	Texture* CreateTexture(uint32_t width, uint32_t height, uint64_t creationFlags, uint32_t numMips, DXGI_FORMAT format, ResourceInitData* initData)
+	Texture* CreateTexture(uint32_t width, uint32_t height, RCF creationFlags, uint32_t numMips, DXGI_FORMAT format, ResourceInitData* initData)
 	{
 		Texture* tex = new Texture{};
 		tex->Type = ResourceType::Texture;
@@ -223,7 +224,7 @@ namespace GFX
 		return tex;
 	}
 
-	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, uint64_t creationFlags, uint32_t numMips, DXGI_FORMAT format, std::vector<ResourceInitData*> initData)
+	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, RCF creationFlags, uint32_t numMips, DXGI_FORMAT format, std::vector<ResourceInitData*> initData)
 	{
 		Texture* tex = new Texture{};
 		tex->Type = ResourceType::Texture;
@@ -246,12 +247,26 @@ namespace GFX
 		return tex;
 	}
 
-	TextureSubresource* CreateTextureSubresource(Texture* resource, uint32_t firstMip, uint32_t mipCount, uint32_t firstElement, uint32_t elementCount)
+	static uint32_t D3D12CalcSubresource(uint32_t MipSlice, uint32_t ArraySlice, uint32_t PlaneSlice, uint32_t MipLevels, uint32_t ArraySize)
+	{
+		return MipSlice + ArraySlice * MipLevels + PlaneSlice * MipLevels * ArraySize;
+	}
+
+	static uint32_t GetSubresourceHash(uint32_t firstMip, uint32_t lastMip, uint32_t firstElement, uint32_t lastElement)
+	{
+		uint32_t h = Hash::Crc32(firstMip);
+		h = Hash::Crc32(h, lastMip);
+		h = Hash::Crc32(h, firstElement);
+		h = Hash::Crc32(h, lastElement);
+		return h;
+	}
+
+	TextureSubresourceView* GetTextureSubresource(Texture* resource, uint32_t firstMip, uint32_t lastMip, uint32_t firstElement, uint32_t lastElement)
 	{
 		// The reason why its not supported its because we cannot decide what to put in Width and Height if it is mip range
-		ASSERT(mipCount == 1, "CreateTextureSubresource: Not supported mip range of more than 1 mip for now!");
+		ASSERT(lastMip - firstMip + 1 == 1, "CreateTextureSubresource: Not supported mip range of more than 1 mip for now!");
 
-		TextureSubresource* subres = new TextureSubresource{};
+		TextureSubresourceView* subres = new TextureSubresourceView{};
 		subres->Type = ResourceType::TextureSubresource;
 		subres->Handle = resource->Handle;
 		subres->Alloc = resource->Alloc;
@@ -264,27 +279,38 @@ namespace GFX
 		subres->DepthOrArraySize = resource->DepthOrArraySize;
 		subres->RowPitch = resource->RowPitch;
 		subres->SlicePitch = resource->SlicePitch;
+		subres->Parent = resource;
 		subres->FirstMip = firstMip;
-		subres->MipCount = mipCount;
+		subres->LastMip = lastMip;
 		subres->FirstElement = firstElement;
-		subres->ElementCount = elementCount;
+		subres->LastElement = lastElement;
 
-		subres->SRV = CreateSRV(subres, firstMip, mipCount, firstElement, elementCount);
-		if (subres->CreationFlags & RCF_Bind_UAV) subres->UAV = CreateUAV(subres, firstMip, firstElement, elementCount);
-		if (subres->CreationFlags & RCF_Bind_RTV && !(subres->CreationFlags & RCF_Cubemap)) subres->RTV = CreateRTV(subres, firstMip, mipCount, firstElement, elementCount);
-		if (subres->CreationFlags & RCF_Bind_DSV && !(subres->CreationFlags & RCF_Cubemap)) subres->DSV = CreateDSV(subres, firstMip, mipCount, firstElement, elementCount);
+		const uint32_t subresHash = GetSubresourceHash(firstMip, lastMip, firstElement, lastElement);
+		if (!resource->Subresources.contains(subresHash))
+		{
+			const uint32_t mipCount = lastMip - firstMip + 1;
+			const uint32_t elementCount = lastElement - firstElement - 1;
+
+			SubResource subresImpl{};
+			if (resource->SRV.IsValid()) subresImpl.SRV = CreateSRV(subres, firstMip, mipCount, firstElement, elementCount);
+			if (resource->UAV.IsValid()) subresImpl.UAV = CreateUAV(subres, firstMip, firstElement, elementCount);
+			if (resource->RTV.IsValid()) subresImpl.RTV = CreateRTV(subres, firstMip, mipCount, firstElement, elementCount);
+			if (resource->DSV.IsValid()) subresImpl.DSV = CreateDSV(subres, firstMip, mipCount, firstElement, elementCount);
+			resource->Subresources[subresHash] = subresImpl;
+		}
+
+		const SubResource& subresImpl = resource->Subresources[subresHash];
+		subres->SRV = subresImpl.SRV;
+		subres->UAV = subresImpl.UAV;
+		subres->RTV = subresImpl.RTV;
+		subres->DSV = subresImpl.DSV;
 
 		return subres;
 	}
 
-	static uint32_t D3D12CalcSubresource(uint32_t MipSlice, uint32_t ArraySlice, uint32_t PlaneSlice, uint32_t MipLevels, uint32_t ArraySize)
-	{
-		return MipSlice + ArraySlice * MipLevels + PlaneSlice * MipLevels * ArraySize;
-	}
-
 	uint32_t GetSubresourceIndex(Texture* texture, uint32_t mipIndex, uint32_t sliceOrArrayIndex)
 	{
-		if (texture->CreationFlags & RCF_Texture3D)
+		if (TestFlag(texture->CreationFlags, RCF::Texture3D))
 		{
 			return D3D12CalcSubresource(mipIndex, 0, sliceOrArrayIndex, texture->NumMips, texture->DepthOrArraySize);
 		}

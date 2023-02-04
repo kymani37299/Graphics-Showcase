@@ -5,11 +5,12 @@
 #include "Core/Application.h"
 #include "Render/Commands.h"
 #include "Render/Device.h"
-#include "Render/Memory.h"
 #include "Render/Texture.h"
 #include "Render/Shader.h"
 #include "Render/RenderThread.h"
+#include "Render/RenderResources.h"
 #include "Gui/GUI.h"
+#include "Gui/EngineGUI/ShaderCompilerGUI.h"
 #include "System/ApplicationConfiguration.h"
 #include "System/Window.h"
 #include "System/Input.h"
@@ -22,10 +23,16 @@ Engine::Engine(Application* app)
 {
 	Window::Init();
 	Window::Get()->ShowCursor(false);
+	
 	Device::Init();
 	GFX::InitShaderCompiler();
 	RenderThreadPool::Init(8);
+
+	GFX::InitRenderingResources();
+
 	GUI::Init();
+	GUI::Get()->AddElement(new ShaderCompilerGUI());
+
 	m_Application = app;
 	m_Application->OnInit(Device::Get()->GetContext());
 	GFX::Cmd::SubmitContext(Device::Get()->GetContext());
@@ -39,9 +46,9 @@ Engine::~Engine()
 	m_Application->OnDestroy(context);
 	GUI::Destroy();
 	delete m_Application;
-	ReleaseContextCache();
 	RenderThreadPool::Destroy();
 	GFX::DestroyShaderCompiler();
+	GFX::DestroyRenderingResources();
 	Device::Destroy();
 	Window::Destroy();
 }
@@ -55,17 +62,15 @@ void Engine::Run()
 
 		m_FrameTimer.Start();
 		WindowInput::InputFrameBegin();
+		
+		// Wait for last frame to finish rendering
+		GFX::Cmd::FlushContext(context);
+		GFX::Cmd::ResetContext(context);
 
 		// Update
 		Window::Get()->Update(dt);
-		
 		m_Application->OnUpdate(context, dt);
 		GUI::Get()->Update(dt);
-
-		// Graphics frame init
-		GFX::Cmd::FlushContext(context);
-		GFX::Cmd::ResetContext(context);
-		DeferredTrash::Clear();
 
 		// Update window size if needed
 		if (AppConfig.WindowSizeDirty)
@@ -79,12 +84,13 @@ void Engine::Run()
 		Texture* finalRT = m_Application->OnDraw(context);
 		if (!finalRT)
 		{
-			finalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV);
-			DeferredTrash::Put(finalRT);
+			finalRT = GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF::RTV);
+			GFX::Cmd::Delete(context, finalRT);
 		}
-		
-		GUI::Get()->Render(context, finalRT); // TODO: First copy the finalRT to the texture with good format then render gui to that texture
-		Device::Get()->EndFrame(finalRT);
+		Device::Get()->CopyToSwapchain(finalRT);
+
+		GUI::Get()->Render(context);
+		Device::Get()->EndFrame();
 
 		WindowInput::InputFrameEnd();
 		m_FrameTimer.Stop();

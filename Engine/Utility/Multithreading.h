@@ -5,19 +5,24 @@
 #include <vector>
 #include <queue>
 #include <sstream>
-
-#define CURRENT_THREAD std::this_thread::get_id()
+#include <chrono>
 
 namespace MTR
 {
 	using ThreadID = std::thread::id;
 
-	inline bool IsThread(ThreadID id) { return id == CURRENT_THREAD; }
+	inline ThreadID CurrentThreadID() { return std::this_thread::get_id();  }
+	inline bool IsThread(ThreadID id) { return id == CurrentThreadID(); }
 	static std::string GetThreadName(ThreadID threadID) // TODO: More descriptive names
 	{
 		std::stringstream ss;
 		ss << threadID;
 		return ss.str();
+	}
+
+	inline void ThreadSleepMS(uint64_t duration)
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(duration));
 	}
 
 	template<typename T>
@@ -67,10 +72,27 @@ namespace MTR
 		}
 
 		template<typename F>
+		void ForEach(F&& f)
+		{
+			Lock();
+			for (T& e : m_Data) f(e);
+			Unlock();
+		}
+
+		template<typename F>
 		void ForEach(F& f)
 		{
 			Lock();
 			for (T& e : m_Data) f(e);
+			Unlock();
+		}
+
+		template<typename F>
+		void ForEachAndClear(F&& f)
+		{
+			Lock();
+			for (T& e : m_Data) f(e);
+			m_Data.clear();
 			Unlock();
 		}
 

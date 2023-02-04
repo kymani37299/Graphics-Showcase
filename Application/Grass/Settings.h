@@ -15,23 +15,21 @@ struct GrassSettingsCB
 	DirectX::XMFLOAT2 AmbientOcclusionRange{0.7f, 0.0f};
 };
 
+struct GrassPerfSettingsCB
+{
+	float LowpolyTreshold = 50.0f;
+	float InstanceReductionFactor = 0.15f;
+	uint32_t MinInstancesPerPatch = 50;
+};
+
 struct GrassGenerationConfiguration
 {
-	uint32_t NumInstances = 10000000;
+	uint32_t NumInstances = 50000000;
 	Float2 HeightRange = { 0.7f, 1.4f };
 	Float3 PlanePosition = { 0.0f, 0.0f, 0.0f };
 	Float3 PlaneScale = { 1000.0f, 20.0f, 1000.0f };
 };
 
-struct GrassStatistics
-{
-	uint32_t TotalInstances = 0;
-	uint32_t InstancesDrawn = 0;
-
-	uint32_t TotalPatches = 0;
-	uint32_t PatchesDrawn = 0;
-};
-
 extern GrassSettingsCB GrassSettings;
+extern GrassPerfSettingsCB GrassPerfSettings;
 extern GrassGenerationConfiguration GrassGenConfig;
-extern GrassStatistics GrassStats;

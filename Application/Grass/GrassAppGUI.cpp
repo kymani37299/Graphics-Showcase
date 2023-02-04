@@ -2,17 +2,18 @@
 
 #include <Engine/Render/Device.h>
 #include <Engine/Gui/GUI.h>
-#include <Engine/Gui/ImGui.h>
+#include <Engine/Gui/ImGui_Core.h>
 
 #include "Grass/Settings.h"
-#include "Grass/GrassApp.h"
 
 namespace GrassAppGUI
 {
+	Requests GUIRequests;
+
 	class GrassSettingsGUI : public GUIElement
 	{
 	public:
-		GrassSettingsGUI(): GUIElement("Grass settings", false) {}
+		GrassSettingsGUI(): GUIElement("Grass settings", GUIFlags::None) {}
 
 		void Update(float dt) override {}
 
@@ -29,16 +30,33 @@ namespace GrassAppGUI
 		}
 	};
 
-	class GrassGenerationGUI : public GUIElement
+	class GrassPerfSettingsGUI : public GUIElement
 	{
 	public:
-		GrassGenerationGUI(GrassApp* app): GUIElement("Grass generation", false), m_App(app) {}
+		GrassPerfSettingsGUI() : GUIElement("Grass performance settings", GUIFlags::None) {}
 
 		void Update(float dt) override {}
 
 		void Render() override
 		{
-			if (ImGui::Button("Regenerate grass")) m_App->RegenerateGrass(Device::Get()->GetContext());
+			ImGui::PushItemWidth(100);
+			ImGui::DragFloat("Lowpoly distance treshold", &GrassPerfSettings.LowpolyTreshold, 0.1f);
+			ImGui::DragFloat("Instance reduction factor", &GrassPerfSettings.InstanceReductionFactor, 0.1f);
+			ImGui::DragUint("Minimum instances per patch", GrassPerfSettings.MinInstancesPerPatch);
+			ImGui::PopItemWidth();
+		}
+	};
+
+	class GrassGenerationGUI : public GUIElement
+	{
+	public:
+		GrassGenerationGUI(): GUIElement("Grass generation", GUIFlags::None) {}
+
+		void Update(float dt) override {}
+
+		void Render() override
+		{
+			if (ImGui::Button("Regenerate grass")) GUIRequests.RegenerateGrass = true;
 			ImGui::PushItemWidth(100);
 			ImGui::DragUint("Number of instances: ", GrassGenConfig.NumInstances, 1000);
 			ImGui::DragFloat("Height range", GrassGenConfig.HeightRange, 0.1f);
@@ -46,33 +64,27 @@ namespace GrassAppGUI
 			ImGui::DragFloat("Scale", GrassGenConfig.PlaneScale);
 			ImGui::PopItemWidth();
 		}
-
-	private:
-		GrassApp* m_App;
 	};
 
-	class GrassStatsGUI : public GUIElement
+	class ShowWindTextureGUIButton : public GUIElement
 	{
 	public:
-		GrassStatsGUI() : GUIElement("Grass stats", false) {}
+		ShowWindTextureGUIButton(): GUIElement("Show wind texture", GUIFlags::OnlyButton) {}
 
-		void Update(float dt) override {}
-
-		void Render() override
+		void OnMenuButtonPress()
 		{
-			ImGui::Text("Patches:   %u / %u", GrassStats.PatchesDrawn, GrassStats.TotalPatches);
-			ImGui::Text("Instances: %u / %u", GrassStats.InstancesDrawn, GrassStats.TotalInstances);
-
+			GUIRequests.ToggleWindTexture = true;
 		}
 	};
 
-	void AddGUI(GrassApp* app)
+	void AddGUI()
 	{
 		GUI* gui = GUI::Get();
 		gui->PushMenu("Grass");
 		gui->AddElement(new GrassSettingsGUI{});
-		gui->AddElement(new GrassGenerationGUI{app});
-		gui->AddElement(new GrassStatsGUI{});
+		gui->AddElement(new GrassPerfSettingsGUI{});
+		gui->AddElement(new GrassGenerationGUI{});
+		gui->AddElement(new ShowWindTextureGUIButton{});
 		gui->PopMenu();
 	}
 

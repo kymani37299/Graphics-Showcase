@@ -42,11 +42,8 @@ static Texture* GenerateWorleyNoise(GraphicsContext& context)
 	// Create resources
 	Shader* worleyShader = new Shader("Application/Clouds/Shaders/worley_noise.hlsl");
 	ResourceInitData initData{&context, points.data()};
-	Buffer* pointsBuffer = GFX::CreateBuffer(CloudNoiseSettings.NumSamplePoints * sizeof(WorleyNoiseSamplePoint), sizeof(WorleyNoiseSamplePoint), RCF_None, &initData);
-	DeferredTrash::Put(pointsBuffer);
-	DeferredTrash::Put(worleyShader);
-
-	Texture* outputTexture = GFX::CreateTexture3D(CloudNoiseSettings.VolumeWidth, CloudNoiseSettings.VolumeHeight, CloudNoiseSettings.VolumeDepth, RCF_Bind_UAV);
+	Buffer* pointsBuffer = GFX::CreateBuffer(CloudNoiseSettings.NumSamplePoints * sizeof(WorleyNoiseSamplePoint), sizeof(WorleyNoiseSamplePoint), RCF::None, &initData);
+	Texture* outputTexture = GFX::CreateTexture3D(CloudNoiseSettings.VolumeWidth, CloudNoiseSettings.VolumeHeight, CloudNoiseSettings.VolumeDepth, RCF::UAV);
 
 	// Record commands
 	ConstantBuffer cbData{};
@@ -57,18 +54,21 @@ static Texture* GenerateWorleyNoise(GraphicsContext& context)
 	cbData.Add((float) CloudNoiseSettings.NormalizationFactor);
 
 	GraphicsState state{};
-	state.Table.CBVs.push_back(cbData.GetBuffer());
-	state.Table.SRVs.push_back(pointsBuffer);
-	state.Table.UAVs.push_back(outputTexture);
 	state.Shader = worleyShader;
 	state.ShaderStages = CS;
-	GFX::Cmd::BindState(context, state);
+	state.Table.CBVs[0] = cbData.GetBuffer(context);
+	state.Table.SRVs[0] = pointsBuffer;
+	state.Table.UAVs[0] = outputTexture;
+	context.ApplyState(state);
 
 	static constexpr uint32_t NumWavesPerDim = 8;
 	context.CmdList->Dispatch(
 		MathUtility::CeilDiv(CloudNoiseSettings.VolumeWidth, NumWavesPerDim), 
 		MathUtility::CeilDiv(CloudNoiseSettings.VolumeHeight, NumWavesPerDim),
 		MathUtility::CeilDiv(CloudNoiseSettings.VolumeDepth, NumWavesPerDim));
+
+	GFX::Cmd::Delete(context, pointsBuffer);
+	GFX::Cmd::Delete(context, worleyShader);
 
 	GFX::Cmd::MarkerEnd(context);
 
@@ -102,12 +102,12 @@ Texture* CloudsApp::OnDraw(GraphicsContext& context)
 	cb.Add(m_Camera.ConstantData);
 
 	GraphicsState state{};
-	state.Table.CBVs.push_back(cb.GetBuffer());
-	state.Table.SRVs.push_back(m_CloudNoise.get());
-	state.Table.SRVs.push_back(m_CloudDetailNoise.get());
-	state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP });
 	state.Shader = m_CloudsShader.get();
-	state.RenderTargets.push_back(m_FinalResult.get());
+	state.Table.CBVs[0] = cb.GetBuffer(context);
+	state.Table.SRVs[0] = m_CloudNoise.get();
+	state.Table.SRVs[1] = m_CloudDetailNoise.get();
+	state.Table.SMPs[0] = Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP };
+	state.RenderTargets[0] = m_FinalResult.get();
 	GFX::Cmd::DrawFC(context, state);
 
 	GFX::Cmd::MarkerEnd(context);
@@ -131,6 +131,6 @@ void CloudsApp::OnShaderReload(GraphicsContext& context)
 
 void CloudsApp::OnWindowResize(GraphicsContext& context)
 {
-	m_FinalResult = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF_Bind_RTV));
+	m_FinalResult = ScopedRef<Texture>(GFX::CreateTexture(AppConfig.WindowWidth, AppConfig.WindowHeight, RCF::RTV));
 	m_Camera.AspectRatio = (float)AppConfig.WindowWidth / AppConfig.WindowHeight;
 }

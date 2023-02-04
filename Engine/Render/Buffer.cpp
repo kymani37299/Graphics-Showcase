@@ -3,7 +3,7 @@
 #include "Render/Context.h"
 #include "Render/Commands.h"
 #include "Render/Device.h"
-#include "Render/Memory.h"
+#include "Render/DescriptorHeap.h"
 #include "Utility/StringUtility.h"
 
 namespace GFX
@@ -36,9 +36,10 @@ namespace GFX
 			GFX::Cmd::UploadToBuffer(*initData->Context, buffer, 0, initData->Data, 0, buffer->ByteSize);
 		}
 
-		const bool rawBuffer = buffer->CreationFlags & RCF_Bind_RAW;
+		const bool rawBuffer = TestFlag(buffer->CreationFlags, RCF::RAW);
 
 		// SRV
+		if(!TestFlag(buffer->CreationFlags, RCF::NoSRV))
 		{
 			buffer->SRV = memory.SRVHeap->Allocate();
 
@@ -62,10 +63,10 @@ namespace GFX
 				srvDesc.Buffer.StructureByteStride = buffer->Stride;
 			}
 
-			device->GetHandle()->CreateShaderResourceView(buffer->Handle.Get(), &srvDesc, buffer->SRV);
+			device->GetHandle()->CreateShaderResourceView(buffer->Handle.Get(), &srvDesc, buffer->SRV.GetCPUHandle());
 		}
 
-		if (buffer->CreationFlags & RCF_Bind_UAV)
+		if (TestFlag(buffer->CreationFlags, RCF::UAV))
 		{
 			buffer->UAV = memory.SRVHeap->Allocate();
 
@@ -90,28 +91,28 @@ namespace GFX
 
 			}
 
-			device->GetHandle()->CreateUnorderedAccessView(buffer->Handle.Get(), nullptr, &uavDesc, buffer->UAV);
+			device->GetHandle()->CreateUnorderedAccessView(buffer->Handle.Get(), nullptr, &uavDesc, buffer->UAV.GetCPUHandle());
 		}
 
-		if (buffer->CreationFlags & RCF_Bind_CBV)
+		if (TestFlag(buffer->CreationFlags, RCF::CBV))
 		{
 			buffer->CBV = memory.SRVHeap->Allocate();
 
 			D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc{};
 			cbvDesc.BufferLocation = buffer->GPUAddress;
 			cbvDesc.SizeInBytes = buffer->ByteSize;
-			device->GetHandle()->CreateConstantBufferView(&cbvDesc, buffer->CBV);
+			device->GetHandle()->CreateConstantBufferView(&cbvDesc, buffer->CBV.GetCPUHandle());
 		}
 	}
 
-	D3D12_RESOURCE_STATES GetStartingBufferState(uint64_t creationFlags)
+	D3D12_RESOURCE_STATES GetStartingBufferState(RCF creationFlags)
 	{
-		if (creationFlags & RCF_Readback) return D3D12_RESOURCE_STATE_COPY_DEST;
-		if (creationFlags & RCF_CPU_Access) return D3D12_RESOURCE_STATE_GENERIC_READ;
+		if (TestFlag(creationFlags, RCF::Readback)) return D3D12_RESOURCE_STATE_COPY_DEST;
+		if (TestFlag(creationFlags, RCF::CPU_Access)) return D3D12_RESOURCE_STATE_GENERIC_READ;
 		return D3D12_RESOURCE_STATE_COMMON;
 	}
 
-	Buffer* CreateBuffer(uint32_t byteSize, uint32_t elementStride, uint64_t creationFlags, ResourceInitData* initData)
+	Buffer* CreateBuffer(uint32_t byteSize, uint32_t elementStride, RCF creationFlags, ResourceInitData* initData)
 	{
 		Buffer* buffer = new Buffer{};
 		buffer->Type = ResourceType::Buffer;
@@ -135,13 +136,12 @@ namespace GFX
 		oldResource->CBV = buffer->CBV;
 		oldResource->SRV = buffer->SRV;
 		oldResource->UAV = buffer->UAV;
-		DeferredTrash::Put(oldResource);
-
+		
 		const uint32_t copySize = MIN(buffer->ByteSize, byteSize);
 		
 		buffer->Handle.Reset();
 		buffer->Alloc.Reset();
-		buffer->CurrState = buffer->CreationFlags & RCF_CPU_Access ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON;
+		buffer->CurrState = TestFlag(buffer->CreationFlags, RCF::CPU_Access) ? D3D12_RESOURCE_STATE_GENERIC_READ : D3D12_RESOURCE_STATE_COMMON;
 		buffer->ByteSize = byteSize;
 		
 		CreateBufferResources(buffer, nullptr);
@@ -149,6 +149,8 @@ namespace GFX
 		GFX::Cmd::TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
 		GFX::Cmd::TransitionResource(context, oldResource, D3D12_RESOURCE_STATE_COPY_SOURCE);
 		context.CmdList->CopyBufferRegion(buffer->Handle.Get(), 0, oldResource->Handle.Get(), 0, copySize);
+
+		GFX::Cmd::Delete(context, oldResource);
 	}
 
 	// From Resource.h

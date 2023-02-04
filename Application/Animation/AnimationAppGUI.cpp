@@ -4,7 +4,7 @@
 
 #include <Engine/Loading/ModelLoading.h>
 #include <Engine/Gui/GUI.h>
-#include <Engine/Gui/ImGui.h>
+#include <Engine/Gui/ImGui_Core.h>
 
 #include "Animation/AnimationApp.h"
 
@@ -14,7 +14,7 @@ namespace AnimationAppGUI
 	{
 	public:
 		MorphsGUI(AnimationApp* app) :
-			GUIElement("Morphs", false),
+			GUIElement("Morphs"),
 			m_Application(app)
 		{}
 

@@ -7,6 +7,7 @@
 #include "Render/Device.h"
 #include "Render/Texture.h"
 #include "Render/Shader.h"
+#include "Render/RenderResources.h"
 
 namespace GFX::Cmd
 {
@@ -26,8 +27,8 @@ namespace GFX::Cmd
 		API_CALL(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(context->CmdFence.Handle.GetAddressOf())));
 		context->CmdFence.Value = 0;
 
-		context->MemContext.SRVHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 64u * 1024, 256u * 1024u };
-		context->MemContext.SMPHeap = DescriptorHeapGPU{ D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u,  1024u };
+		context->MemContext.SRVHeap = DescriptorHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 64u * 1024, 256u * 1024u };
+		context->MemContext.SMPHeap = DescriptorHeap{ true, D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 256u,  1024u };
 
 		return context;
 	}
@@ -45,43 +46,58 @@ namespace GFX::Cmd
 
 	void AddResourceTransition(std::vector<D3D12_RESOURCE_BARRIER>& barriers, Resource* res, D3D12_RESOURCE_STATES wantedState)
 	{
-		if (!res || res->CurrState & wantedState) return;
+		if (!res) return;
 
-		if (res->Type == ResourceType::TextureSubresource)
+		const bool needsUAVBarrier = (res->CurrState & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) && (wantedState & D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		if ((res->CurrState & wantedState) && !needsUAVBarrier) 
+			return;
+
+		if (needsUAVBarrier)
 		{
-			TextureSubresource* subres = static_cast<TextureSubresource*>(res);
-			for (uint32_t mip = subres->FirstMip; mip < subres->FirstMip + subres->MipCount; mip++)
-			{
-				for (uint32_t el = subres->FirstElement; el < subres->FirstElement + subres->ElementCount; el++)
-				{
-					D3D12_RESOURCE_BARRIER barrier;
-					barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-					barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-					barrier.Transition.pResource = res->Handle.Get();
-					barrier.Transition.StateBefore = res->CurrState;
-					barrier.Transition.StateAfter = wantedState;
-					barrier.Transition.Subresource = GFX::GetSubresourceIndex(subres, mip, el);
-					barriers.push_back(std::move(barrier));
-				}
-			}
-		}
-		else if (res->Type == ResourceType::BufferSubresource)
-		{
-			NOT_IMPLEMENTED;
+			D3D12_RESOURCE_BARRIER barrier;
+			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+			barrier.UAV.pResource = res->Handle.Get();
+			barriers.push_back(std::move(barrier));
 		}
 		else
 		{
-			D3D12_RESOURCE_BARRIER barrier;
-			barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-			barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-			barrier.Transition.pResource = res->Handle.Get();
-			barrier.Transition.StateBefore = res->CurrState;
-			barrier.Transition.StateAfter = wantedState;
-			barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-			barriers.push_back(std::move(barrier));
-		}
+			if (res->Type == ResourceType::TextureSubresource)
+			{
+				TextureSubresourceView* subres = static_cast<TextureSubresourceView*>(res);
+				for (uint32_t mip = subres->FirstMip; mip <= subres->LastMip; mip++)
+				{
+					for (uint32_t el = subres->FirstElement; el <= subres->LastElement; el++)
+					{
+						D3D12_RESOURCE_BARRIER barrier;
+						barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+						barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+						barrier.Transition.pResource = res->Handle.Get();
+						barrier.Transition.StateBefore = res->CurrState;
+						barrier.Transition.StateAfter = wantedState;
+						barrier.Transition.Subresource = GFX::GetSubresourceIndex(subres, mip, el);
+						barriers.push_back(std::move(barrier));
+					}
+				}
+			}
+			else if (res->Type == ResourceType::BufferSubresource)
+			{
+				NOT_IMPLEMENTED;
+			}
+			else
+			{
+				D3D12_RESOURCE_BARRIER barrier;
+				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+				barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+				barrier.Transition.pResource = res->Handle.Get();
+				barrier.Transition.StateBefore = res->CurrState;
+				barrier.Transition.StateAfter = wantedState;
+				barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+				barriers.push_back(std::move(barrier));
+			}
 
-		res->CurrState = wantedState;
+			res->CurrState = wantedState;
+		}
 	}
 
 	void TransitionResource(GraphicsContext& context, Resource* resource, D3D12_RESOURCE_STATES wantedState)
@@ -116,29 +132,58 @@ namespace GFX::Cmd
 	void SubmitContext(GraphicsContext& context)
 	{
 		API_CALL(context.CmdList->Close());
+		context.Closed = true;
+
 		ID3D12CommandList* cmdsLists[] = { context.CmdList.Get() };
 		context.CmdQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
 	}
 
 	void ResetContext(GraphicsContext& context)
 	{
-		context.CmdAlloc->Reset();
-		context.CmdList->Reset(context.CmdAlloc.Get(), nullptr);
-		context.BoundState.Valid = false;
+		if (context.Closed)
+		{
+			// Clear resources
+			{
+				MemoryContext& mem = context.MemContext;
+
+				for (DescriptorAllocation descriptorAlloc : mem.FrameDescriptors) descriptorAlloc.Release();
+				for (Shader* shader : mem.FrameShaders) delete shader;
+				for (Resource* resource : mem.FrameResources) delete resource;
+
+				mem.FrameDXResources.clear();
+				mem.FrameDescriptors.clear();
+				mem.FrameShaders.clear();
+				mem.FrameResources.clear();
+			}
+
+			// Sync readback buffers
+			{
+				for (ReadbackBuffer* readbackBuffer : context.PendingReadbacks)
+				{
+					readbackBuffer->Private_Sync();
+					
+				}
+				context.PendingReadbacks.clear();
+			}
+
+			// Clear api state
+			{
+				context.CmdAlloc->Reset();
+				context.CmdList->Reset(context.CmdAlloc.Get(), nullptr);
+				context.BoundState.Valid = false;
+			}
+
+			context.Closed = false;
+		}
 	}
 
-	ID3D12CommandSignature* BindState(GraphicsContext& context, const GraphicsState& state)
+	void SetPushConstants(uint32_t shaderStages, GraphicsContext& context, const PushConstantTable& values)
 	{
-		return ApplyGraphicsState(context, state);
-	}
+		ASSERT(!values.empty(), "[UpdatePushConstants] Push constants are empty");
 
-	void UpdatePushConstants(GraphicsContext& context, const GraphicsState& state)
-	{
-		ASSERT(!state.PushConstants.empty(), "[UpdatePushConstants] Push constants are empty");
-
-		const bool useCompute = state.ShaderStages & CS;
-		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
-		else  context.CmdList->SetGraphicsRoot32BitConstants(0, (UINT) state.PushConstants.size(), state.PushConstants.data(), 0);
+		const bool useCompute = shaderStages & CS;
+		if (useCompute) context.CmdList->SetComputeRoot32BitConstants(0, (UINT)values.size(), values.data(), 0);
+		else  context.CmdList->SetGraphicsRoot32BitConstants(0, (UINT)values.size(), values.data(), 0);
 	}
 
 	void ClearRenderTarget(GraphicsContext& context, Texture* renderTarget)
@@ -146,163 +191,101 @@ namespace GFX::Cmd
 		TransitionResource(context, renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
 		float clearColor[] = { 0.0f, 0.0f, 0.0f, 0.0f };
 		D3D12_RECT rect = { 0, 0, (long) renderTarget->Width, (long) renderTarget->Height };
-		context.CmdList->ClearRenderTargetView(renderTarget->RTV, clearColor, 1, &rect);
+		context.CmdList->ClearRenderTargetView(renderTarget->RTV.GetCPUHandle(), clearColor, 1, &rect);
 	}
 
 	void ClearDepthStencil(GraphicsContext& context, Texture* depthStencil)
 	{
 		TransitionResource(context, depthStencil, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 		D3D12_RECT rect = { 0, 0, (long) depthStencil->Width, (long) depthStencil->Height };
-		context.CmdList->ClearDepthStencilView(depthStencil->DSV, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 1, &rect);
+		context.CmdList->ClearDepthStencilView(depthStencil->DSV.GetCPUHandle(), D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, 1.0f, 0, 1, &rect);
 	}
 
-	// TODO: Create staging resources directly on a Device and use that
-
-	struct UpdateSubresourceInput
+	void UploadToBufferImmediate(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
-		Resource* DstResource = nullptr;
-		const void* Data = nullptr;
-		uint32_t MipIndex = 0;
-		uint32_t ArrayIndex = 0;
-		uint32_t SrcOffset = 0;
-		uint32_t DstOffset = 0;
-		uint32_t DataSize = 0;
-	};
+		ASSERT(TestFlag(buffer->CreationFlags, RCF::CPU_Access), "[UploadToBufferImmediate] Buffer must have CPU Access for immediate upload");
 
-	static void UpdateSubresource(GraphicsContext& context, UpdateSubresourceInput input)
-	{
-		Device* device = Device::Get();
-
-		// Maybe use one staging buffer for everything	
-		static constexpr uint32_t StagingOffset = 0;
-
-		uint32_t subresourceIndex = 0;
-		D3D12_SUBRESOURCE_DATA subresourceData{};
-		subresourceData.pData = (const void*)(reinterpret_cast<const uint8_t*>(input.Data) + input.SrcOffset);
-		if (input.DstResource->Type == ResourceType::Texture)
-		{
-			Texture* texture = static_cast<Texture*>(input.DstResource);
-			subresourceIndex = GFX::GetSubresourceIndex(texture, input.MipIndex, input.ArrayIndex);
-			subresourceData.RowPitch = texture->RowPitch;
-			subresourceData.SlicePitch = texture->SlicePitch;
-		}
-		else if (input.DstResource->Type == ResourceType::Buffer)
-		{
-			Buffer* buffer = static_cast<Buffer*>(input.DstResource);
-			subresourceData.RowPitch = buffer->ByteSize;
-			subresourceData.SlicePitch = subresourceData.RowPitch;
-		}
-
-		uint64_t resourceSize;
-		D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout;
-		uint32_t subresRowNumber;
-		uint64_t subresRowByteSizes;
-
-		ID3D12Resource* dxResource = input.DstResource->Handle.Get();
-		D3D12_RESOURCE_DESC resourceDesc = dxResource->GetDesc();
-
-		// Get memory footprints
-		ID3D12Device* resourceDevice;
-		dxResource->GetDevice(__uuidof(*resourceDevice), reinterpret_cast<void**>(&resourceDevice));
-		resourceDevice->GetCopyableFootprints(&resourceDesc, subresourceIndex, 1, StagingOffset, &subresLayout, &subresRowNumber, &subresRowByteSizes, &resourceSize);
-		resourceDevice->Release();
-
-		// Create staging resource
-		Buffer* stagingResource = GFX::CreateBuffer(input.DataSize ? input.DataSize : (uint32_t) resourceSize, 1, RCF_CPU_Access);
-		DeferredTrash::Put(stagingResource);
-		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
-
-		// Upload data to staging resource
-		uint8_t* stagingDataPtr;
-		API_CALL(stagingResource->Handle->Map(0, NULL, reinterpret_cast<void**>(&stagingDataPtr)));
-		if (input.DataSize)
-		{
-			memcpy(stagingDataPtr, input.Data, input.DataSize);
-		}
-		else
-		{
-			D3D12_MEMCPY_DEST DestData = { stagingDataPtr + subresLayout.Offset, subresLayout.Footprint.RowPitch, (uint64_t)subresLayout.Footprint.RowPitch * subresRowNumber };
-			MemcpySubresource(&DestData, &subresourceData, (uint32_t)subresRowByteSizes, subresRowNumber, subresLayout.Footprint.Depth);
-		}
-		stagingResource->Handle->Unmap(0, NULL);
-
-		// Copy data to resource
-		if (input.DstResource->Type == ResourceType::Buffer)
-		{
-			const uint32_t copySize = input.DataSize ? input.DataSize : subresLayout.Footprint.Width;
-			Buffer* buffer = static_cast<Buffer*>(input.DstResource);
-			TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
-			context.CmdList->CopyBufferRegion(buffer->Handle.Get(), input.DstOffset, stagingResource->Handle.Get(), subresLayout.Offset, copySize);
-		}
-		else
-		{
-			Texture* texture = static_cast<Texture*>(input.DstResource);
-			TransitionResource(context, texture, D3D12_RESOURCE_STATE_COPY_DEST);
-
-			D3D12_TEXTURE_COPY_LOCATION dst{};
-			dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
-			dst.pResource = texture->Handle.Get();
-			dst.SubresourceIndex = subresourceIndex;
-
-			D3D12_TEXTURE_COPY_LOCATION src{};
-			src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
-			src.pResource = stagingResource->Handle.Get();
-			src.PlacedFootprint = subresLayout;
-
-			context.CmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
-		}
-
-		DeferredTrash::Put(stagingResource->Handle.Get());
-	}
-
-	void UploadToBufferCPU(Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
-	{
-		ASSERT(buffer->CreationFlags & RCF_CPU_Access, "[UploadToBufferCPU] Buffer must have CPU Access in order to map it");
-
-		D3D12_RANGE mapRange{ 0, buffer->ByteSize };
+		// TODO: Map only required part
 		void* mappedData;
+		D3D12_RANGE mapRange{ 0, buffer->ByteSize };
 		API_CALL(buffer->Handle->Map(0, &mapRange, &mappedData));
-		memcpy(mappedData, data, dataSize);
+
+		uint8_t* srcData = (uint8_t*)data;
+		uint8_t* dstData = (uint8_t*)mappedData;
+		memcpy(dstData + dstOffset, srcData + srcOffset, dataSize);
+
 		buffer->Handle->Unmap(0, &mapRange);
-	}
-
-	void UploadToBufferGPU(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
-	{
-		UpdateSubresourceInput updateInput{};
-		updateInput.DstResource = buffer;
-		updateInput.Data = data;
-		updateInput.DataSize = dataSize;
-		updateInput.SrcOffset = srcOffset;
-		updateInput.DstOffset = dstOffset;
-
-		TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
-		UpdateSubresource(context, updateInput);
 	}
 
 	void UploadToBuffer(GraphicsContext& context, Buffer* buffer, uint32_t dstOffset, const void* data, uint32_t srcOffset, uint32_t dataSize)
 	{
 		if (dataSize == 0) return;
 
-		if (buffer->CreationFlags & RCF_CPU_Access)
-		{
-			UploadToBufferCPU(buffer, dstOffset, data, srcOffset, dataSize);
-		}
-		else
-		{
-			UploadToBufferGPU(context, buffer, dstOffset, data, srcOffset, dataSize);
-		}
+		// Create staging resource
+		Buffer* stagingResource = GFX::CreateBuffer(dataSize, 1, RCF::CPU_Access | RCF::NoSRV);
+		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
+
+		// Upload data to staging resource
+		GFX::Cmd::UploadToBufferImmediate(stagingResource, 0, data, srcOffset, dataSize);
+		
+		// Copy to buffer
+		const uint32_t copySize = dataSize;
+		TransitionResource(context, buffer, D3D12_RESOURCE_STATE_COPY_DEST);
+		context.CmdList->CopyBufferRegion(buffer->Handle.Get(), dstOffset, stagingResource->Handle.Get(), 0, copySize);
+		
+		GFX::Cmd::Delete(context, stagingResource);
 	}
 
 	void UploadToTexture(GraphicsContext& context, const void* data, Texture* texture, uint32_t mipIndex, uint32_t arrayIndex)
 	{
-		UpdateSubresourceInput updateInput{};
-		updateInput.DstResource = texture;
-		updateInput.Data = data;
-		updateInput.MipIndex = mipIndex;
-		updateInput.ArrayIndex = arrayIndex;
+		Device* device = Device::Get();
+
+		// Get memory footprints
+		uint32_t subresourceIndex = 0;
+		D3D12_SUBRESOURCE_DATA subresourceData{};
+		subresourceData.pData = data;
+		subresourceIndex = GFX::GetSubresourceIndex(texture, mipIndex, arrayIndex);
+		subresourceData.RowPitch = texture->RowPitch;
+		subresourceData.SlicePitch = texture->SlicePitch;
+
+		uint64_t resourceSize;
+		D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout;
+		uint32_t subresRowNumber;
+		uint64_t subresRowByteSizes;
+
+		ID3D12Resource* dxResource = texture->Handle.Get();
+		D3D12_RESOURCE_DESC resourceDesc = dxResource->GetDesc();
+		ID3D12Device* resourceDevice;
+		dxResource->GetDevice(__uuidof(*resourceDevice), reinterpret_cast<void**>(&resourceDevice));
+		resourceDevice->GetCopyableFootprints(&resourceDesc, subresourceIndex, 1, 0, &subresLayout, &subresRowNumber, &subresRowByteSizes, &resourceSize);
+		resourceDevice->Release();
+
+		// Create staging resource
+		Buffer* stagingResource = GFX::CreateBuffer((uint32_t)resourceSize, 1, RCF::CPU_Access | RCF::NoSRV);
+		GFX::SetDebugName(stagingResource, "UpdateSubresource::StagingBuffer");
+
+		// Upload data to staging resource
+		uint8_t* stagingDataPtr;
+		API_CALL(stagingResource->Handle->Map(0, NULL, reinterpret_cast<void**>(&stagingDataPtr)));
+		D3D12_MEMCPY_DEST DestData = { stagingDataPtr + subresLayout.Offset, subresLayout.Footprint.RowPitch, (uint64_t)subresLayout.Footprint.RowPitch * subresRowNumber };
+		MemcpySubresource(&DestData, &subresourceData, (uint32_t)subresRowByteSizes, subresRowNumber, subresLayout.Footprint.Depth);
+		stagingResource->Handle->Unmap(0, NULL);
+
+		// Copy to texture
+		D3D12_TEXTURE_COPY_LOCATION dst{};
+		dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+		dst.pResource = texture->Handle.Get();
+		dst.SubresourceIndex = subresourceIndex;
+
+		D3D12_TEXTURE_COPY_LOCATION src{};
+		src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+		src.pResource = stagingResource->Handle.Get();
+		src.PlacedFootprint = subresLayout;
 
 		TransitionResource(context, texture, D3D12_RESOURCE_STATE_COPY_DEST);
-		UpdateSubresource(context, updateInput);
+		context.CmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
+
+		GFX::Cmd::Delete(context, stagingResource);
 	}
 
 	void CopyToTexture(GraphicsContext& context, Texture* srcTexture, Texture* dstTexture, uint32_t mipIndex)
@@ -330,50 +313,70 @@ namespace GFX::Cmd
 		context.CmdList->CopyBufferRegion(dstBuffer->Handle.Get(), dstOffset, srcBuffer->Handle.Get(), srcOffset, size);
 	}
 
+	void ClearBuffer(GraphicsContext& context, Buffer* buffer)
+	{
+		std::vector<uint8_t> emptyData{};
+		emptyData.resize(buffer->ByteSize);
+		memset(emptyData.data(), 0, buffer->ByteSize);
+		GFX::Cmd::UploadToBuffer(context, buffer, 0, emptyData.data(), 0, buffer->ByteSize);
+	}
+
 	void DrawFC(GraphicsContext& context, GraphicsState& state)
 	{
-		state.VertexBuffers.resize(1);
-		state.VertexBuffers[0] = Device::Get()->GetQuadBuffer();
-		GFX::Cmd::BindState(context, state);
+		state.VertexBuffers[0] = GFX::RenderResources.QuadBuffer.get();
+		context.ApplyState(state);
 		context.CmdList->DrawInstanced(6, 1, 0, 0);
 	}
 
 	void GenerateMips(GraphicsContext& context, Texture* texture)
 	{
 		ASSERT(texture->DepthOrArraySize == 1, "GenerateMips not supported for texture arrays!");
-		ASSERT(texture->CreationFlags & RCF_Bind_RTV && texture->CreationFlags & RCF_GenerateMips, "RCF_Bind_RTV and RCF_GenerateMips flags needed for GenerateMips function!");
-
+		
 		GFX::Cmd::MarkerBegin(context, "GenerateMips");
+
+		// Get staging texture
+		StagingResourcesContext::StagingTextureRequest texRequest = {};
+		texRequest.Width = texture->Width;
+		texRequest.Height = texture->Height;
+		texRequest.NumMips = texture->NumMips;
+		texRequest.Format = texture->Format;
+		texRequest.CreationFlags = RCF::RTV | RCF::GenerateMips;
+		StagingResourcesContext::StagingTexture* stagingTexture = context.StagingResources.GetTransientTexture(texRequest);
+
+		// Copy data to staging texture
+		GFX::Cmd::CopyToTexture(context, texture, stagingTexture->TextureResource, 0);
+
+		// Init subresources
+		std::vector<TextureSubresourceView*> mipSubresources;
+		mipSubresources.resize(texture->NumMips);
+		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
+		{
+			mipSubresources[mip] = GFX::GetTextureSubresource(stagingTexture->TextureResource, mip, mip, 0, 0);
+		}
 
 		// Init state
 		GraphicsState state{};
-		state.RenderTargets.resize(1);
-		state.Table.SRVs.resize(1);
-		state.Shader = Device::Get()->GetCopyShader();
-		state.Table.SMPs.push_back(Sampler{ D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_CLAMP });
+		state.Shader = GFX::RenderResources.CopyShader.get();
+		state.Table.SMPs[0] = Sampler{ D3D12_FILTER_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_CLAMP };
 		
-		// Generate subresources
-		std::vector<TextureSubresource*> subresources{};
-		subresources.resize(texture->NumMips);
-		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
-		{
-			subresources[mip] = GFX::CreateTextureSubresource(texture, mip, 1, 0, texture->DepthOrArraySize);
-			DeferredTrash::Put(subresources[mip]);
-		}
-
 		// Generate mips
 		for (uint32_t mip = 1; mip < texture->NumMips; mip++)
 		{
-			state.Table.SRVs[0] = subresources[mip - 1];
-			state.RenderTargets[0] = subresources[mip];
+			state.Table.SRVs[0] = mipSubresources[mip - 1];
+			state.RenderTargets[0] = mipSubresources[mip];
 			GFX::Cmd::DrawFC(context, state);
 		}
 
-		// Return resource state to initial state
+		// Free subresources
 		for (uint32_t mip = 0; mip < texture->NumMips; mip++)
 		{
-			GFX::Cmd::TransitionResource(context, subresources[mip], texture->CurrState);
+			GFX::Cmd::TransitionResource(context, mipSubresources[mip], mipSubresources[mip]->Parent->CurrState);
+			delete mipSubresources[mip];
 		}
+
+		// Copy to target texture
+		for (uint32_t mip = 0; mip < texture->NumMips; mip++) 
+			GFX::Cmd::CopyToTexture(context, stagingTexture->TextureResource, texture, mip);
 
 		GFX::Cmd::MarkerEnd(context);
 	}
@@ -385,13 +388,19 @@ namespace GFX::Cmd
 		context.CmdList->ResolveSubresource(outputTexture->Handle.Get(), 0, inputTexture->Handle.Get(), 0, outputTexture->Format);
 	}
 
+	void AddReadbackRequest(GraphicsContext& context, ReadbackBuffer* readbackBuffer)
+	{
+		GFX::Cmd::CopyToBuffer(context, readbackBuffer->GetWriteBuffer(), 0, readbackBuffer->Private_GetReadBufferForCopy(), 0, readbackBuffer->GetStride());
+		context.PendingReadbacks.push_back(readbackBuffer);
+	}
+
 	template<typename T>
 	BindlessTable CreateBindlessTable(GraphicsContext& context, std::vector<T*> resources, uint32_t registerSpace)
 	{
 		ASSERT(registerSpace > 0u, "[CreateBindlessTable] Bindless resources must exist on space that is not 0");
 		ASSERT(!resources.empty(), "[CreateBindlessTable] Cannot create bindless table with no resources!");
 
-		DescriptorHeapGPU& heap = context.MemContext.SRVHeap;
+		DescriptorHeap& heap = context.MemContext.SRVHeap;
 
 		BindlessTable table;
 		table.DescriptorTable = heap.Allocate(resources.size());
@@ -401,8 +410,8 @@ namespace GFX::Cmd
 		// Fill descriptor table
 		for (uint32_t i = 0; i < resources.size(); i++)
 		{
-			const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = resources[i]->SRV;
-			const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = heap.GetCPUHandle(table.DescriptorTable, i);
+			const D3D12_CPU_DESCRIPTOR_HANDLE srcDescriptor = resources[i]->SRV.GetCPUHandle();
+			const D3D12_CPU_DESCRIPTOR_HANDLE dstDescriptor = table.DescriptorTable.GetCPUHandle(i);
 			Device::Get()->GetHandle()->CopyDescriptorsSimple(1, dstDescriptor, srcDescriptor, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		
@@ -414,8 +423,8 @@ namespace GFX::Cmd
 
 	void ReleaseBindlessTable(GraphicsContext& context, const BindlessTable& table)
 	{
-		if(table.DescriptorTable.HeapAlloc.NumElements != INVALID_ALLOCATION)
-			DeferredTrash::Put(&context.MemContext.SRVHeap, table.DescriptorTable);
+		if (table.DescriptorTable.IsValid())
+			GFX::Cmd::Delete(context, table.DescriptorTable);
 	}
 
 }

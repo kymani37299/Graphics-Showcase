@@ -50,7 +50,7 @@ namespace TextureLoading
 			stbi_image_free(data);
 	}
 
-	Texture* LoadTextureHDR(const std::string& path, uint64_t creationFlags)
+	Texture* LoadTextureHDR(const std::string& path, RCF creationFlags)
 	{
 		// TODO: Pass context
 		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -62,7 +62,7 @@ namespace TextureLoading
 		return texture;
 	}
 
-	Texture* LoadTexture(GraphicsContext& context, const std::string& path, uint64_t creationFlags, uint32_t numMips)
+	Texture* LoadTexture(GraphicsContext& context, const std::string& path, RCF creationFlags, uint32_t numMips)
 	{
 		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 
@@ -76,19 +76,18 @@ namespace TextureLoading
 		}
 		else
 		{
-			Texture* stagingTexture = GFX::CreateTexture(width, height, RCF_Bind_RTV | RCF_GenerateMips, numMips, TEXTURE_FORMAT);
-			DeferredTrash::Put(stagingTexture);
-			GFX::Cmd::UploadToTexture(context, texData, stagingTexture);
-			GFX::Cmd::GenerateMips(context, stagingTexture);
+			const uint32_t maxWH = MAX(width, height);
+			while (maxWH >> (numMips-1) == 0) numMips--;
 
 			texture = GFX::CreateTexture(width, height, creationFlags, numMips, TEXTURE_FORMAT);
-			for (uint32_t mip = 0; mip < numMips; mip++) GFX::Cmd::CopyToTexture(context, stagingTexture, texture, mip);
+			GFX::Cmd::UploadToTexture(context, texData, texture, 0);
+			GFX::Cmd::GenerateMips(context, texture);
 		}
 		FreeTexture(texData);
 		return texture;
 	}
 
-	Texture* LoadCubemap(const std::string& path, uint64_t creationFlags)
+	Texture* LoadCubemap(const std::string& path, RCF creationFlags)
 	{
 		// TODO: Pass context
 

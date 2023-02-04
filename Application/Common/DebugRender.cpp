@@ -91,8 +91,7 @@ namespace DebugRender
 		DebugShader = new Shader{ "Application/Common/debug_render.hlsl" };
 
 		DebugState.Shader = DebugShader;
-		DebugState.VertexBuffers.push_back(SphereVB);
-		DebugState.Table.CBVs.resize(1);
+		DebugState.VertexBuffers[0] = SphereVB;
 		DebugState.DepthStencilState.DepthEnable = true;
 		DebugState.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 		DebugState.BlendState.RenderTarget[0].BlendEnable = true;
@@ -117,10 +116,10 @@ namespace DebugRender
 		cb.Add(position);
 		cb.Add(radius);
 
-		DebugState.Table.CBVs[0] = cb.GetBuffer();
-		DebugState.RenderTargets.push_back(colorTarget);
+		DebugState.Table.CBVs[0] = cb.GetBuffer(context);
+		DebugState.RenderTargets[0] = colorTarget;
 		DebugState.DepthStencil = depthDarget;
-		GFX::Cmd::BindState(context, DebugState);
+		context.ApplyState(DebugState);
 		context.CmdList->DrawInstanced(SphereVB->ByteSize / SphereVB->Stride, 1, 0, 0);
 	}
 }
