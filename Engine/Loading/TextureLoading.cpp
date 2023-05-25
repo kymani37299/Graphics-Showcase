@@ -14,6 +14,8 @@ namespace TextureLoading
 
 	static void* LoadTexture(const std::string& path, int& width, int& height, int& bpp)
 	{
+		PROFILE_SECTION_CPU("STBI::LoadTexture");
+
 		void* data = stbi_load(path.c_str(), &width, &height, &bpp, 4);
 
 		if (!data)
@@ -30,6 +32,8 @@ namespace TextureLoading
 
 	static void* LoadTextureF(const std::string& path, int& width, int& height, int& bpp)
 	{
+		PROFILE_SECTION_CPU("STBI::LoadTextureF");
+
 		void* data = stbi_loadf(path.c_str(), &width, &height, &bpp, 4);
 
 		if (!data)
@@ -46,17 +50,18 @@ namespace TextureLoading
 
 	static void FreeTexture(void* data)
 	{
+		PROFILE_SECTION_CPU("STBI::FreeTexture");
+
 		if (data != INVALID_TEXTURE_COLOR)
 			stbi_image_free(data);
 	}
 
-	Texture* LoadTextureHDR(const std::string& path, RCF creationFlags)
+	Texture* LoadTextureHDR(GraphicsContext& context, const std::string& path, RCF creationFlags)
 	{
-		// TODO: Pass context
 		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		int width, height, bpp;
 		void* texData = LoadTextureF(path, width, height, bpp);
-		ResourceInitData initData = { &Device::Get()->GetContext(), texData };
+		ResourceInitData initData = { &context, texData };
 		Texture* texture = GFX::CreateTexture(width, height, creationFlags, 1, TEXTURE_FORMAT, &initData);
 		FreeTexture(texData);
 		return texture;
@@ -87,10 +92,8 @@ namespace TextureLoading
 		return texture;
 	}
 
-	Texture* LoadCubemap(const std::string& path, RCF creationFlags)
+	Texture* LoadCubemap(GraphicsContext& context, const std::string& path, RCF creationFlags)
 	{
-		// TODO: Pass context
-
 		// Load tex
 		static constexpr DXGI_FORMAT TEXTURE_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM;
 		int width, height, bpp;
@@ -104,7 +107,7 @@ namespace TextureLoading
 		uint8_t* bytePtr = (uint8_t*)texData;
 		for (size_t i = 0; i < 6; i++)
 		{
-			datas[i] = { &Device::Get()->GetContext(), (const void*)(bytePtr + i * byteSizePerImg) };
+			datas[i] = { &context, (const void*)(bytePtr + i * byteSizePerImg) };
 			initData[i] = &datas[i];
 		}
 

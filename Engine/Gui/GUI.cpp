@@ -16,7 +16,7 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg
 
 GUI* GUI::s_Instance = nullptr;
 
-void GUIElement::RenderElement()
+void GUIElement::RenderElement(GraphicsContext& context)
 {
 	if (TestFlag(GetFlags(), GUIFlags::OnlyButton))
 		return;
@@ -25,7 +25,7 @@ void GUIElement::RenderElement()
 	{
 		if (ImGui::Begin(m_Name.c_str(), &m_Shown))
 		{
-			Render();
+			Render(context);
 		}
 		ImGui::End();
 	}
@@ -54,6 +54,7 @@ bool GUI::HandleWndProc(void* hwnd, unsigned int msg, unsigned int wparam, long 
 
 void GUI::Update(float dt)
 {
+	PROFILE_SECTION_CPU("GUI::Update");
 	for (auto& it : m_Elements)
 	{
 		for (GUIElement* element : it.second)
@@ -65,28 +66,27 @@ void GUI::Update(float dt)
 
 void GUI::Render(GraphicsContext& context)
 {
+	PROFILE_SECTION(context, "GUI::Render");
+
 	if (!m_Initialized)
 	{
-		// NOTE: If we are having multiple contexts make sure that context that initialized ImGui is used for imgui draw
 		Device* device = Device::Get();
-		MemoryContext& memContext = device->GetContext().MemContext;
-		DescriptorHeap& srvHeap = memContext.SRVHeap;
-		DescriptorAllocation alloc = memContext.SRVHeap.Allocate(256u);
+		DeviceMemory& deviceMemory = device->GetMemory();
+		DescriptorHeap& srvHeap = *deviceMemory.SRVHeapGPU;
+		DescriptorAllocation alloc = srvHeap.Allocate(256u);
 		D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle = alloc.GetCPUHandle();
 		D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = alloc.GetGPUHandle();
-		ImGui_ImplDX12_Init(device->GetHandle(), Device::SWAPCHAIN_BUFFER_COUNT, Device::SWAPCHAIN_DEFAULT_FORMAT, srvHeap.GetHeap(), cpuHandle, gpuHandle);
+		ImGui_ImplDX12_Init(Device::Get()->GetHandle(), ContextManager::IN_FLIGHT_FRAME_COUNT, Device::SWAPCHAIN_DEFAULT_FORMAT, srvHeap.GetHeap(), cpuHandle, gpuHandle);
 
 		m_Initialized = true;
 	}
 
 	if (!m_Visible || m_Elements.empty()) return;
 
-	GFX::Cmd::MarkerBegin(context, "ImGUI");
-
 	// Prepare imgui context
 	{
 		// Bind Descriptor heaps
-		ID3D12DescriptorHeap* descriptorHeaps[] = { context.MemContext.SRVHeap.GetHeap() };
+		ID3D12DescriptorHeap* descriptorHeaps[] = { Device::Get()->GetMemory().SRVHeapGPU->GetHeap()};
 		context.CmdList->SetDescriptorHeaps(1, descriptorHeaps);
 
 		// Bind render target
@@ -100,7 +100,7 @@ void GUI::Render(GraphicsContext& context)
 	// Draw menu bar
 	if (ImGui::BeginMainMenuBar())
 	{
-		for (auto& it : m_Elements) 
+		for (auto& it : m_Elements)
 		{
 			if (ImGui::BeginMenu(it.first.c_str()))
 			{
@@ -127,7 +127,7 @@ void GUI::Render(GraphicsContext& context)
 		for (GUIElement* element : it.second)
 		{
 			ImGui::PushID(id);
-			element->RenderElement();
+			element->RenderElement(context);
 			ImGui::PopID();
 			id++;
 		}
@@ -135,8 +135,6 @@ void GUI::Render(GraphicsContext& context)
 
 	ImGui::Render();
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), context.CmdList.Get());
-
-	GFX::Cmd::MarkerEnd(context);
 }
 
 void GUI::Reset()

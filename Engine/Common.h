@@ -1,5 +1,8 @@
 #pragma once
 
+// Config
+#define PROFILING_ENABLED
+
 #include <iostream>
 #include <string>
 
@@ -42,3 +45,32 @@ inline T& operator ^= (T& a, T b)	{ a = a ^ b;	return a;};															\
 inline bool TestFlag(T a, T b)		{ return static_cast<T_PARENT>(a & b) != 0; }
 
 #define DEFINE_ENUM_CLASS_FLAGS(T) DEFINE_ENUM_CLASS_FLAGS_EX(T, uint32_t)
+
+#define MACRO_CONCAT_IMPL(x, y) x##y
+#define MACRO_CONCAT(x, y) MACRO_CONCAT_IMPL(x, y)
+
+struct GraphicsContext;
+
+namespace EnginePrivate
+{
+	class ScopedSectionResolver
+	{
+	public:
+		ScopedSectionResolver(const GraphicsContext& context, const std::string& sectonName);
+		~ScopedSectionResolver();
+
+	private:
+		const GraphicsContext& m_Context;
+	};
+}
+
+#ifdef PROFILING_ENABLED
+#include <Optick/optick.h>
+#define PROFILE_SECTION_CPU(SECTION_NAME) OPTICK_EVENT(SECTION_NAME)
+#define PROFILE_SECTION(GFX_CONTEXT, SECTION_NAME)  OPTICK_GPU_EVENT(SECTION_NAME); EnginePrivate::ScopedSectionResolver MACRO_CONCAT(_sectionResolver, __LINE__){GFX_CONTEXT, SECTION_NAME};
+#define PROFILE_FUNCTION() OPTICK_GPU_EVENT(__FUNCTION__)
+#else
+#define PROFILE_SECTION_CPU(SECTION_NAME)
+#define PROFILE_SECTION(GFX_CONTEXT, SECTION_NAME)
+#define PROFILE_FUNCTION()
+#endif

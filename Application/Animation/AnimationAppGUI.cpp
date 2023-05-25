@@ -20,7 +20,7 @@ namespace AnimationAppGUI
 
 		void Update(float dt) override {}
 
-		void Render() override
+		void Render(GraphicsContext& context) override
 		{
 			ImGui::Checkbox("Weight animation", &m_Application->m_EnableWeightAnimation);
 

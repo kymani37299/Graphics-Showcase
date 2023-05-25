@@ -48,7 +48,7 @@ class ReadbackBuffer
 public:
 	ReadbackBuffer(uint32_t stride)
 	{
-		for (uint32_t i = 0; i < Device::IN_FLIGHT_FRAME_COUNT; i++)
+		for (uint32_t i = 0; i < ContextManager::IN_FLIGHT_FRAME_COUNT; i++)
 		{
 			m_ReadBuffers[i] = GFX::CreateBuffer(stride, stride, RCF::Readback);
 			m_WriteBuffers[i] = GFX::CreateBuffer(stride, stride, RCF::UAV);
@@ -57,7 +57,7 @@ public:
 
 	~ReadbackBuffer()
 	{
-		for (uint32_t i = 0; i < Device::IN_FLIGHT_FRAME_COUNT; i++)
+		for (uint32_t i = 0; i < ContextManager::IN_FLIGHT_FRAME_COUNT; i++)
 		{
 			delete m_ReadBuffers[i];
 			delete m_WriteBuffers[i];
@@ -70,7 +70,7 @@ public:
 	void Private_Sync()
 	{
 		m_ReadIndex = m_WriteIndex;
-		m_WriteIndex = (m_WriteIndex + 1) % Device::IN_FLIGHT_FRAME_COUNT;
+		m_WriteIndex = (m_WriteIndex + 1) % ContextManager::IN_FLIGHT_FRAME_COUNT;
 	}
 
 	Buffer* Private_GetReadBufferForCopy() const { return m_ReadBuffers[m_WriteIndex]; }
@@ -78,8 +78,8 @@ public:
 
 private:
 	uint32_t m_ReadIndex = 0;
-	uint32_t m_WriteIndex = 1;
+	uint32_t m_WriteIndex = ContextManager::IN_FLIGHT_FRAME_COUNT == 1 ? 0 : 1;
 
-	Buffer* m_ReadBuffers[Device::IN_FLIGHT_FRAME_COUNT];
-	Buffer* m_WriteBuffers[Device::IN_FLIGHT_FRAME_COUNT];
+	Buffer* m_ReadBuffers[ContextManager::IN_FLIGHT_FRAME_COUNT];
+	Buffer* m_WriteBuffers[ContextManager::IN_FLIGHT_FRAME_COUNT];
 };

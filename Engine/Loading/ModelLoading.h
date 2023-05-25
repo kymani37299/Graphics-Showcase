@@ -160,6 +160,6 @@ namespace ModelLoading
 		std::unordered_map<cgltf_node*, std::vector<cgltf_animation_channel*>> m_NodeAnimationMap;
 	};
 
-	void Free(SceneObject& sceneObject);
+	void Free(GraphicsContext& context, SceneObject& sceneObject);
 	void Free(std::vector<SceneObject>& scene);
 }

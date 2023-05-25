@@ -209,6 +209,8 @@ namespace GFX
 
 	Texture* CreateTexture(uint32_t width, uint32_t height, RCF creationFlags, uint32_t numMips, DXGI_FORMAT format, ResourceInitData* initData)
 	{
+		PROFILE_SECTION_CPU("CreateTexture");
+
 		Texture* tex = new Texture{};
 		tex->Type = ResourceType::Texture;
 		tex->CreationFlags = creationFlags;
@@ -226,6 +228,8 @@ namespace GFX
 
 	Texture* CreateTextureArray(uint32_t width, uint32_t height, uint32_t numElements, RCF creationFlags, uint32_t numMips, DXGI_FORMAT format, std::vector<ResourceInitData*> initData)
 	{
+		PROFILE_SECTION_CPU("CreateTextureArray");
+
 		Texture* tex = new Texture{};
 		tex->Type = ResourceType::Texture;
 		tex->CreationFlags = creationFlags;

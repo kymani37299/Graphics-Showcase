@@ -78,12 +78,12 @@ void GrassApp::OnInit(GraphicsContext& context)
 
 	// Load grass objects
 	ModelLoading::Loader loader{ context };
-	const auto loadGrassModel = [&loader](ModelLoading::SceneObject& sceneObject, const std::string path)
+	const auto loadGrassModel = [&loader, &context](ModelLoading::SceneObject& sceneObject, const std::string path)
 	{
 		auto scene = loader.Load(path);
 		ASSERT_CORE(!scene.empty(), "Failed to load a grass object!");
 		sceneObject = scene[0];
-		for (uint32_t i = 1; i < scene.size(); i++) ModelLoading::Free(scene[i]);
+		for (uint32_t i = 1; i < scene.size(); i++) ModelLoading::Free(context, scene[i]);
 	};
 	loadGrassModel(regularGrass.LowPoly, "Application/Grass/Resources/grass_lowpoly.gltf");
 	loadGrassModel(regularGrass.HighPoly, "Application/Grass/Resources/grass_highpoly.gltf");
@@ -122,8 +122,8 @@ void GrassApp::OnDestroy(GraphicsContext& context)
 {
 	for (GrassMaterialData& mat : m_GrassMaterials)
 	{
-		ModelLoading::Free(mat.LowPoly);
-		ModelLoading::Free(mat.HighPoly);
+		ModelLoading::Free(context, mat.LowPoly);
+		ModelLoading::Free(context, mat.HighPoly);
 	}
 	GrassAppGUI::RemoveGUI();
 }
@@ -340,7 +340,7 @@ void GrassApp::OnWindowResize(GraphicsContext& context)
 void GrassApp::RegenerateGrass(GraphicsContext& context)
 {
 	// Wait for context to finish before deleting the data
-	GFX::Cmd::FlushContext(context);
+	ContextManager::Get().Flush();
 
 	uint32_t minDataOffset = 0;
 	uint32_t maxDataOffset = 0;

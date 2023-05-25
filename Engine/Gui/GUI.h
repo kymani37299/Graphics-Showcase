@@ -29,7 +29,7 @@ public:
 	virtual ~GUIElement() {}
 
 	virtual void Update(float dt) {};
-	void RenderElement();
+	void RenderElement(GraphicsContext& context);
 
 	virtual void Reset() {}
 	virtual void OnMenuButtonPress() {}
@@ -40,7 +40,7 @@ public:
 	GUIFlags GetFlags() const { return m_Flags; }
 
 protected:
-	virtual void Render() {};
+	virtual void Render(GraphicsContext& context) {};
 
 private:
 	std::string m_Name = "";

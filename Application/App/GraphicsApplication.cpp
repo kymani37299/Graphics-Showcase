@@ -84,9 +84,8 @@ void GraphicsApplication::OnUpdate_Internal(GraphicsContext& context, float dt)
 
 	if (m_PendingSampleIndex != m_ActiveSampleIndex)
 	{
-		GFX::Cmd::FlushContext(context);
-		GFX::Cmd::ResetContext(context);
-		
+		ContextManager::Get().Flush();
+
 		m_ActiveSample->OnDestroy(context);
 		delete m_ActiveSample;
 

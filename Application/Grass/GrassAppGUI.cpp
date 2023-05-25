@@ -17,7 +17,7 @@ namespace GrassAppGUI
 
 		void Update(float dt) override {}
 
-		void Render() override 
+		void Render(GraphicsContext& context) override
 		{
 			ImGui::PushItemWidth(100);
 			ImGui::DragFloat("Tip Range", GrassSettings.TipRange, 0.1f);
@@ -37,7 +37,7 @@ namespace GrassAppGUI
 
 		void Update(float dt) override {}
 
-		void Render() override
+		void Render(GraphicsContext& context) override
 		{
 			ImGui::PushItemWidth(100);
 			ImGui::DragFloat("Lowpoly distance treshold", &GrassPerfSettings.LowpolyTreshold, 0.1f);
@@ -54,7 +54,7 @@ namespace GrassAppGUI
 
 		void Update(float dt) override {}
 
-		void Render() override
+		void Render(GraphicsContext& context) override
 		{
 			if (ImGui::Button("Regenerate grass")) GUIRequests.RegenerateGrass = true;
 			ImGui::PushItemWidth(100);

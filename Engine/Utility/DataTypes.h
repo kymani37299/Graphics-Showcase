@@ -8,6 +8,7 @@
 struct Float2
 {
 	Float2() : x(0), y(0) {}
+	Float2(float _xy) : x(_xy), y(_xy) {}
 	Float2(float _x, float _y) : x(_x), y(_y) {}
 	Float2(DirectX::XMFLOAT2 xm) : x(xm.x), y(xm.y) {}
 	Float2(DirectX::XMVECTOR xm)
@@ -63,7 +64,10 @@ struct Float2
 struct Float3
 {
 	Float3() : x(0), y(0), z(0) {}
+	Float3(float _xyz) : x(_xyz), y(_xyz), z(_xyz) {}
 	Float3(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {}
+	Float3(Float2 _xy, float _z) : x(_xy.x), y(_xy.y), z(_z) {}
+	Float3(float _x, Float2 _yz) : x(_x), y(_yz.x), z(_yz.y) {}
 	Float3(DirectX::XMFLOAT3 xm) : x(xm.x), y(xm.y), z(xm.z) {}
 	Float3(DirectX::XMVECTOR xm)
 	{
@@ -121,7 +125,12 @@ struct Float3
 struct Float4
 {
 	Float4() : x(0), y(0), z(0), w(0) {}
+	Float4(float _xyzw) : x(_xyzw), y(_xyzw), z(_xyzw), w(_xyzw) {}
 	Float4(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
+	Float4(Float3 _xyz, float _w) : x(_xyz.x), y(_xyz.y), z(_xyz.z), w(_w) {}
+	Float4(Float2 _xy, Float2 _zw) : x(_xy.x), y(_xy.y), z(_zw.x), w(_zw.y) {}
+	Float4(float _x, Float3 _yzw) : x(_x), y(_yzw.x), z(_yzw.y), w(_yzw.z) {}
+	Float4(float _x, Float2 _yz, float _w) : x(_x), y(_yz.x), z(_yz.y), w(_w) {}
 	Float4(DirectX::XMFLOAT4 xm) : x(xm.x), y(xm.y), z(xm.z), w(xm.w) {}
 	Float4(DirectX::XMVECTOR xm)
 	{
@@ -233,7 +242,7 @@ public:
 	void Resize(uint32_t numBits)
 	{
 		m_NumBits = numBits;
-		m_NumElements = (m_NumBits + NumBitsPerElement - 1) / NumBitsPerElement;
+		m_NumElements = MathUtility::CeilDiv(m_NumBits, NumBitsPerElement);
 		m_Data.resize(m_NumElements);
 	}
 

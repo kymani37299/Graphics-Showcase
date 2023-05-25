@@ -55,7 +55,7 @@ void AnimationApp::OnDestroy(GraphicsContext& context)
 {
 	for (ModelLoading::SceneObject& obj : m_SceneObjects)
 	{
-		ModelLoading::Free(obj);
+		ModelLoading::Free(context, obj);
 	}
 	AnimationAppGUI::RemoveGUI();
 }

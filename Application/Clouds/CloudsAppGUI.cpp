@@ -15,7 +15,7 @@ namespace CloudsAppGUI
 		CloudSettingsGUI() : GUIElement("Cloud settings", GUIFlags::None) {}
 		void Update(float dt) override {}
 
-		void Render() override
+		void Render(GraphicsContext& context) override
 		{
 			ImGui::Text("Cloud box");
 			ImGui::DragFloat("Position", CloudSettings.Position);
@@ -73,7 +73,7 @@ namespace CloudsAppGUI
 		SunSettingsGUI() : GUIElement("Sun settings", GUIFlags::None) {}
 		void Update(float dt) override {}
 
-		void Render() override
+		void Render(GraphicsContext& context) override
 		{
 			ImGui::DragFloat("Position", SunSettings.Position);
 			ImGui::ColorEdit("Radiance", SunSettings.Radiance);
@@ -89,11 +89,11 @@ namespace CloudsAppGUI
 		}
 		void Update(float dt) override {}
 
-		void Render() override
+		void Render(GraphicsContext& context) override
 		{
 			if (ImGui::Button("Regenerate noise"))
 			{
-				m_App->OnShaderReload(Device::Get()->GetContext());
+				m_App->OnShaderReload(context);
 			}
 			ImGui::PushItemWidth(100);
 			ImGui::DragUint("Number of sample points", CloudNoiseSettings.NumSamplePoints);

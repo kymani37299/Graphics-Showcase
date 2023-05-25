@@ -35,7 +35,9 @@ bool RenderTaskComparator(const RenderTask* l, const RenderTask* r)
 
 void RenderThread::Run()
 {
-	ScopedRef<GraphicsContext> context = ScopedRef<GraphicsContext>(GFX::Cmd::CreateGraphicsContext());
+	OPTICK_THREAD("RenderThread");
+
+	GraphicsContext& context = ContextManager::Get().CreateWorkerContext();
 	while (m_WantedState != RenderThreadState::Stopped)
 	{
 		while (m_WantedState == RenderThreadState::Paused)
@@ -65,17 +67,13 @@ void RenderThread::Run()
 		if (m_CurrentTask == nullptr) continue;
 
 		// Execute task
+		GFX::Cmd::BeginRecording(context);
 		m_State = RenderThreadState::RunningTask;
 		m_CurrentTask.load()->SetRunning(true);
-		m_CurrentTask.load()->Run(*context);
+		m_CurrentTask.load()->Run(context);
 		m_CurrentTask.load()->SetRunning(false);
+		GFX::Cmd::EndRecordingAndSubmit(context);
 
-		// Submit
-		// TODO: In flight tasks
-		GFX::Cmd::SubmitContext(*context);
-		GFX::Cmd::FlushContext(*context);
-		GFX::Cmd::ResetContext(*context.get());
-		
 		RenderTask* lastTask = m_CurrentTask.exchange(nullptr);
 		delete lastTask;
 	}

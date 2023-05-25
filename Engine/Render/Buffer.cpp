@@ -4,6 +4,7 @@
 #include "Render/Commands.h"
 #include "Render/Device.h"
 #include "Render/DescriptorHeap.h"
+#include "Utility/MathUtility.h"
 #include "Utility/StringUtility.h"
 
 namespace GFX
@@ -12,6 +13,12 @@ namespace GFX
 	{
 		Device* device = Device::Get();
 		DeviceMemory& memory = device->GetMemory();
+
+		const bool rawBuffer = TestFlag(buffer->CreationFlags, RCF::RAW);
+		if (rawBuffer)
+		{
+			buffer->ByteSize = MathUtility::Align(buffer->ByteSize, (uint32_t) sizeof(uint32_t));
+		}
 
 		D3D12_RESOURCE_DESC bufferDesc;
 		bufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
@@ -35,8 +42,6 @@ namespace GFX
 		{
 			GFX::Cmd::UploadToBuffer(*initData->Context, buffer, 0, initData->Data, 0, buffer->ByteSize);
 		}
-
-		const bool rawBuffer = TestFlag(buffer->CreationFlags, RCF::RAW);
 
 		// SRV
 		if(!TestFlag(buffer->CreationFlags, RCF::NoSRV))
@@ -114,6 +119,8 @@ namespace GFX
 
 	Buffer* CreateBuffer(uint32_t byteSize, uint32_t elementStride, RCF creationFlags, ResourceInitData* initData)
 	{
+		PROFILE_SECTION_CPU("Buffer::CreateBuffer");
+
 		Buffer* buffer = new Buffer{};
 		buffer->Type = ResourceType::Buffer;
 		buffer->CreationFlags = creationFlags;
@@ -126,6 +133,8 @@ namespace GFX
 
 	void ResizeBuffer(GraphicsContext& context, Buffer* buffer, uint32_t byteSize)
 	{
+		PROFILE_SECTION(context, "Buffer::ResizeBuffer");
+
 		Device* device = Device::Get();
 		DeviceMemory& memory = device->GetMemory();
 

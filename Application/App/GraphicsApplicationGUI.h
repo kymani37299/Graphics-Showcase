@@ -17,7 +17,7 @@ public:
 
 protected:
 
-	void Render() override
+	void Render(GraphicsContext& context) override
 	{
 		ImGui::Text("Active: %s", m_Application->GetActiveSampleName().c_str());
 
@@ -49,7 +49,7 @@ public:
 
 protected:
 
-	void Render() override
+	void Render(GraphicsContext& context) override
 	{
 		ImGui::Text("WASD - Movement");
 		ImGui::Text("F    - Toggle mouse");
@@ -88,7 +88,7 @@ public:
 		}
 	}
 
-	void Render() override
+	void Render(GraphicsContext& context) override
 	{
 		ImGui::Text("Frame: %.2f ms", m_CurrentDT);
 		ImGui::Text("FPS:   %u", static_cast<uint32_t>(1000.0f / m_CurrentDT));

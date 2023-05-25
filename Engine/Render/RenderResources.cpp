@@ -1,5 +1,6 @@
 #include "RenderResources.h"
 
+#include "Render/Context.h"
 #include "Render/Device.h"
 #include "Render/Buffer.h"
 #include "Render/Shader.h"
@@ -8,7 +9,7 @@ namespace GFX
 {
 	RenderingResources RenderResources;
 
-	void InitRenderingResources()
+	void InitRenderingResources(GraphicsContext& context)
 	{
 		RenderResources.CopyShader = ScopedRef<Shader>(new Shader{ "Engine/Render/copy.hlsl" });
 
@@ -27,7 +28,7 @@ namespace GFX
 			FCVert{	{-1.0,-1.0},	{0.0,1.0}}
 		};
 
-		ResourceInitData initData = { &Device::Get()->GetContext(), fcVBData.data()};
+		ResourceInitData initData = { &context, fcVBData.data()};
 
 		RenderResources.QuadBuffer = ScopedRef<Buffer>(GFX::CreateBuffer((uint32_t)fcVBData.size() * sizeof(FCVert), sizeof(FCVert), RCF::None, &initData));
 		GFX::SetDebugName(RenderResources.QuadBuffer.get(), "Device::QuadBuffer");
@@ -35,7 +36,7 @@ namespace GFX
 
 	}
 
-	void DestroyRenderingResources()
+	void DestroyRenderingResources(GraphicsContext& context)
 	{
 		RenderResources.CopyShader = nullptr;
 		RenderResources.QuadBuffer = nullptr;

@@ -8,6 +8,8 @@
 #include "Render/Shader.h"
 #include "Utility/Hash.h"
 
+ContextManager* ContextManager::s_Instance = nullptr;
+
 GraphicsState::GraphicsState()
 {
 	D3D12_BLEND_DESC blend;
@@ -60,9 +62,6 @@ GraphicsState::GraphicsState()
 	RasterizerState = raster;
 	DepthStencilState = depthStencil;
 
-	CustomViewport = { 0.0f, 0.0f, (float)AppConfig.WindowWidth, (float)AppConfig.WindowHeight, 0.0f, 1.0f };
-	CustomScissor = { 0,0, (long)AppConfig.WindowWidth, (long)AppConfig.WindowHeight };
-	
 	CommandSignature.ByteStride = 0;
 	CommandSignature.NodeMask = 0;
 	CommandSignature.NumArgumentDescs = 0;
@@ -389,8 +388,7 @@ static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, cons
 	{
 		if (binding) bindingsToUpload.push_back(binding);
 	}
-	DescriptorHeap& heap = context.MemContext.SRVHeap;
-	DescriptorAllocation alloc = heap.AllocateTransient(bindingsToUpload.size());
+	DescriptorAllocation alloc = Device::Get()->GetMemory().SRVHeapGPU->AllocateTransient(bindingsToUpload.size());
 
 	for (size_t i = 0; i < bindingsToUpload.size(); i++)
 	{
@@ -403,7 +401,10 @@ static DescriptorAllocation CreateDescriptorTable(GraphicsContext& context, cons
 
 ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 {
+	PROFILE_FUNCTION();
+
 	Device* device = Device::Get();
+	DeviceMemory& deviceMemory = Device::Get()->GetMemory();
 	ID3D12GraphicsCommandList* cmdList = CmdList.Get();
 
 	std::vector<D3D12_RESOURCE_BARRIER> barriers;
@@ -424,8 +425,8 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 	if (pipelineDirty)
 	{
 		std::vector<ID3D12DescriptorHeap*> descriptorHeaps{};
-		descriptorHeaps.push_back(MemContext.SRVHeap.GetHeap());
-		descriptorHeaps.push_back(MemContext.SMPHeap.GetHeap());
+		descriptorHeaps.push_back(deviceMemory.SRVHeapGPU->GetHeap());
+		descriptorHeaps.push_back(deviceMemory.SMPHeapGPU->GetHeap());
 		cmdList->SetDescriptorHeaps((UINT) descriptorHeaps.size(), descriptorHeaps.data());
 
 		if (useCompute) cmdList->SetComputeRootSignature(rootSignature);
@@ -523,7 +524,7 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 		if (!state.Table.SMPs.empty())
 		{
 			const uint32_t samplerTableIndex = (uint32_t) descriptorTables.size();
-			descriptorTables.push_back(MemContext.SMPHeap.AllocateTransient(state.Table.SMPs.size()));
+			descriptorTables.push_back(deviceMemory.SMPHeapGPU->AllocateTransient(state.Table.SMPs.size()));
 
 			for (size_t i = 0; i < state.Table.SMPs.size(); i++)
 			{
@@ -576,13 +577,20 @@ ID3D12CommandSignature* GraphicsContext::ApplyState(const GraphicsState& state)
 
 GraphicsContext::~GraphicsContext()
 {
+	GFX::Cmd::BeginRecording(*this);
+
 	for (const auto& [key, value] : SamplerCache)
 		GFX::Cmd::Delete(*this, value);
 
 	StagingResources.ClearTransientTextures(*this);
 
-	GFX::Cmd::FlushContext(*this);
-	GFX::Cmd::ResetContext(*this);
+	GFX::Cmd::EndRecordingAndSubmit(*this);
+	GFX::Cmd::WaitToFinish(*this);
+
+	// Just to clear resources from the destructor
+	GFX::Cmd::BeginRecording(*this);
+	GFX::Cmd::EndRecordingAndSubmit(*this);
+	GFX::Cmd::WaitToFinish(*this);
 }
 
 static uint32_t GetHash(const StagingResourcesContext::StagingTextureRequest& request)
@@ -617,4 +625,52 @@ void StagingResourcesContext::ClearTransientTextures(GraphicsContext& context)
 		delete it.second;
 	}
 	m_TransientStagingTextures.clear();
+}
+
+static GraphicsContext* CreateGraphicsContext()
+{
+	GraphicsContext* context = new GraphicsContext{};
+
+	ID3D12Device* device = Device::Get()->GetHandle();
+	API_CALL(device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(context->CmdAlloc.GetAddressOf())));
+	API_CALL(device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, context->CmdAlloc.Get(), nullptr /* Initial PSO */, IID_PPV_ARGS(context->CmdList.GetAddressOf())));
+	API_CALL(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(context->CmdFence.Handle.GetAddressOf())));
+	context->CmdFence.Value = 0;
+
+	GFX::Cmd::EndRecordingAndSubmit(*context);
+
+	return context;
+}
+
+ContextManager::ContextManager()
+{
+	for (uint32_t i = 0; i < ContextManager::IN_FLIGHT_FRAME_COUNT; i++)
+	{
+		m_FrameContexts[i] = ScopedRef<GraphicsContext>(CreateGraphicsContext());
+	}
+	m_CreationContext = ScopedRef<GraphicsContext>(CreateGraphicsContext());
+}
+
+void ContextManager::Flush()
+{
+	m_CreationMutex.Lock();
+	for (uint32_t i = 0; i < ContextManager::IN_FLIGHT_FRAME_COUNT; i++)
+	{
+		GFX::Cmd::WaitToFinish(*m_FrameContexts[i]);
+	}
+	for (ScopedRef<GraphicsContext>& workerContext : m_WorkerContexts)
+	{
+		GFX::Cmd::WaitToFinish(*workerContext);
+	}
+	GFX::Cmd::WaitToFinish(*m_CreationContext);
+	m_CreationMutex.Unlock();
+}
+
+GraphicsContext& ContextManager::CreateWorkerContext()
+{
+	GraphicsContext* context = CreateGraphicsContext();
+	m_CreationMutex.Lock();
+	m_WorkerContexts.push_back(ScopedRef<GraphicsContext>{context});
+	m_CreationMutex.Unlock();
+	return *context;
 }

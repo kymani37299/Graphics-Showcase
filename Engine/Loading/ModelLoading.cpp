@@ -560,34 +560,37 @@ namespace ModelLoading
 	}
 
 	template<typename T>
-	static void Free(T** res)
+	static void Free(GraphicsContext& context, T** res)
 	{
-		if (*res) GFX::Cmd::Delete(Device::Get()->GetContext(), *res);
+		if (*res) GFX::Cmd::Delete(context, *res);
 		*res = nullptr;
 	}
 
-	void Free(SceneObject& sceneObject)
+	void Free(GraphicsContext& context, SceneObject& sceneObject)
 	{
-		Free(&sceneObject.Positions);
-		Free(&sceneObject.Texcoords);
-		Free(&sceneObject.Normals);
-		Free(&sceneObject.Tangents);
-		Free(&sceneObject.Weights);
-		Free(&sceneObject.Joints);
-		Free(&sceneObject.Indices);
-		Free(&sceneObject.Albedo);
-		Free(&sceneObject.Normal);
-		Free(&sceneObject.MetallicRoughness);
+		Free(context, &sceneObject.Positions);
+		Free(context, &sceneObject.Texcoords);
+		Free(context, &sceneObject.Normals);
+		Free(context, &sceneObject.Tangents);
+		Free(context, &sceneObject.Weights);
+		Free(context, &sceneObject.Joints);
+		Free(context, &sceneObject.Indices);
+		Free(context, &sceneObject.Albedo);
+		Free(context, &sceneObject.Normal);
+		Free(context, &sceneObject.MetallicRoughness);
 
 		for (MorphTarget& morphTarget : sceneObject.MorphTargets)
 		{
-			GFX::Cmd::Delete(Device::Get()->GetContext(), morphTarget.Data);
+			GFX::Cmd::Delete(context, morphTarget.Data);
 		}
 	}
 	
 	void Free(std::vector<SceneObject>& scene)
 	{
-		for (SceneObject& sceneObject : scene) Free(sceneObject);
+		GraphicsContext& context = ContextManager::Get().GetCreationContext();
+		GFX::Cmd::BeginRecording(context);
+		for (SceneObject& sceneObject : scene) Free(context, sceneObject);
+		GFX::Cmd::EndRecordingAndSubmit(context);
 	}
 }
 
