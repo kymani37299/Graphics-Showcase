@@ -13,9 +13,6 @@ namespace AnimationOperations
 		case ModelLoading::AnimInterpolation::Lerp:
 			value = MathUtility::Lerp(a, b, t);
 			break;
-		case ModelLoading::AnimInterpolation::SLerp:
-			value = MathUtility::Slerp(a, b, t);
-			break;
 		case ModelLoading::AnimInterpolation::Step:
 			value = a;
 			break;
@@ -40,7 +37,7 @@ namespace AnimationOperations
 			transformation = XMMatrixTranslationFromVector(Interpolate(keyFrameA.Translation, keyFrameB.Translation, animationTime, interpolationType));
 			break;
 		case ModelLoading::AnimTarget::Rotation:	
-			transformation = XMMatrixRotationQuaternion(Interpolate(keyFrameA.Rotation, keyFrameB.Rotation, animationTime, interpolationType));
+			transformation = XMMatrixRotationQuaternion(Interpolate(keyFrameA.Rotation, keyFrameB.Rotation, animationTime, interpolationType).ToXM());
 			break;
 		case ModelLoading::AnimTarget::Scale:	
 			transformation = XMMatrixScalingFromVector(Interpolate(keyFrameA.Scale, keyFrameB.Scale, animationTime, interpolationType));

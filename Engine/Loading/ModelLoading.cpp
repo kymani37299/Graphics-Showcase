@@ -35,6 +35,11 @@ namespace ModelLoading
 		return Float4{ color[0], color[1], color[2], color[3] };
 	}
 
+	static Quaternion ToQuaternion(cgltf_float color[4])
+	{
+		return Quaternion{ color[0], color[1], color[2], color[3] };
+	}
+
 	template<typename T>
 	static T* GetBufferData(cgltf_accessor* accessor)
 	{
@@ -200,7 +205,7 @@ namespace ModelLoading
 		switch (interpolationType)
 		{
 		case cgltf_interpolation_type_cubic_spline:		// return AnimInterpolation::Cubic; Not implemented
-		case cgltf_interpolation_type_linear:			return target == AnimTarget::Rotation ? AnimInterpolation::SLerp : AnimInterpolation::Lerp;
+		case cgltf_interpolation_type_linear:			return AnimInterpolation::Lerp;
 		case cgltf_interpolation_type_step:				return AnimInterpolation::Step;
 		default: NOT_IMPLEMENTED;
 		}
@@ -237,34 +242,7 @@ namespace ModelLoading
 		return bs;
 	}
 
-	static DirectX::XMFLOAT4X4 CalcBaseTransform(cgltf_node* nodeData, const Float3& positionOrigin, const Float3& baseScale)
-	{
-		using namespace DirectX;
-
-		std::vector<cgltf_node*> hierarchy;
-		cgltf_node* currNode = nodeData;
-		while (currNode)
-		{
-			hierarchy.push_back(currNode);
-			currNode = currNode->parent;
-		}
-
-		XMMATRIX transform = XMMatrixIdentity();
-		for (int32_t i = (int32_t) hierarchy.size() - 1; i >= 0; i--)
-		{
-			cgltf_node* node = hierarchy[i];
-			ASSERT(!node->has_matrix, "Currently matrix transform representations not supported!");
-			const Float3 position = node->has_translation ? ToFloat3(node->translation) : Float3{ 0.0f, 0.0f, 0.0f };
-			const Float4 rotation = node->has_rotation ? ToFloat4(node->rotation) : Float4{ 0.0f, 0.0f, 0.0f, 0.0f };
-			const Float3 scale = node->has_scale ? ToFloat3(node->scale) : Float3{ 1.0f, 1.0f, 1.0f };
-			const XMMATRIX nodeTransform = XMMatrixAffineTransformation(scale, Float3{ 0.0f, 0.0f, 0.0f }, rotation, position);
-			transform = XMMatrixMultiply(transform, nodeTransform);
-		}
-		transform = XMMatrixMultiply(transform, XMMatrixAffineTransformation(baseScale, Float3{ 0.0f, 0.0f, 0.0f }, Float4(0.0f, 0.0f, 0.0f, 0.0f), positionOrigin));
-		return XMUtility::ToXMFloat4x4(transform);
-	}
-
-	std::vector<SceneObject> Loader::Load(const std::string& path)
+	Scene Loader::Load(const std::string& path)
 	{
 		const std::string& ext = PathUtility::GetFileExtension(path);
 		if (ext != "gltf")
@@ -279,14 +257,77 @@ namespace ModelLoading
 		CGTF_CALL(cgltf_parse_file(&options, path.c_str(), &data));
 		CGTF_CALL(cgltf_load_buffers(&options, data, path.c_str()));
 
-		m_Scene = std::vector<SceneObject>();
+		ASSERT(data->scene, "Missing scene!");
 
 		FillNodeAnimationMap(data);
-		for (size_t i = 0; i < data->nodes_count; i++) LoadNode(data->nodes + i);
-
+		const Scene scene = LoadScene(data->scene);
+		
 		cgltf_free(data);
 
-		return m_Scene;
+		return scene;
+	}
+
+	SceneCamera Loader::LoadCamera(cgltf_camera* cameraData)
+	{
+		if (!cameraData || cameraData->type == cgltf_camera_type_invalid)
+		{
+			ASSERT(0, "Invalid camera data!");
+			return {};
+		}
+
+		const auto matrixData = XMUtility::DecomposeMatrix(m_CurrentTransform);
+
+		SceneCamera camera;
+		camera.Position = matrixData.Position;
+		camera.Rotation = matrixData.Rotation;
+		camera.IsOrtho = cameraData->type == cgltf_camera_type_orthographic;
+
+		if (camera.IsOrtho)
+		{
+			cgltf_camera_orthographic cam = cameraData->data.orthographic;
+			camera.ZFar = cam.zfar;
+			camera.ZNear = cam.znear;
+		}
+		else
+		{
+			cgltf_camera_perspective cam = cameraData->data.perspective;
+			camera.ZFar = cam.zfar;
+			camera.ZNear = cam.znear;
+			camera.FOV = cam.yfov;
+		}
+		return camera;
+	}
+
+	ModelLoading::SceneLight Loader::LoadLight(cgltf_light* lightNode)
+	{
+		const auto matrixData = XMUtility::DecomposeMatrix(m_CurrentTransform);
+
+		SceneLight light{};
+		light.Position = matrixData.Position;
+		light.Direction = matrixData.Rotation.RotateVector({ 0.0f, -1.0f, 0.0f });
+		light.Color = ToFloat3(lightNode->color);
+		light.Strength = lightNode->intensity;
+		light.Range = lightNode->range;
+		light.InnerConeAngle = lightNode->spot_inner_cone_angle;
+		light.OuterConeAngle = lightNode->spot_outer_cone_angle;
+
+		switch (lightNode->type)
+		{
+		case cgltf_light_type_directional:
+			light.Type = SceneLight::LightType::Directional;
+			break;
+		case cgltf_light_type_point:
+			light.Type = SceneLight::LightType::Point;
+			break;
+		case cgltf_light_type_spot:
+			light.Type = SceneLight::LightType::Spot;
+			break;
+		default:
+			NOT_IMPLEMENTED;
+			break;
+
+		}
+		return light;
 	}
 
 	void Loader::FillNodeAnimationMap(cgltf_data* sceneData)
@@ -308,12 +349,57 @@ namespace ModelLoading
 		}
 	}
 
+	ModelLoading::Scene Loader::LoadScene(cgltf_scene* scene)
+	{
+		m_Scene = Scene{};
+		XMStoreFloat4x4(&m_CurrentTransform, DirectX::XMMatrixIdentity());
+
+		for (size_t i = 0; i < scene->nodes_count; i++) 
+			LoadNode(*(scene->nodes + i));
+		return m_Scene;
+	}
+
+	struct NodeTransform
+	{
+		Float3 Position{ 0.0f, 0.0f, 0.0f };
+		Quaternion Rotation{ 0.0f, 0.0f, 0.0f, 0.0f };
+		Float3 Scale{ 1.0f, 1.0f, 1.0f };
+	};
+
+	NodeTransform GetTransform(cgltf_node* node)
+	{
+		ASSERT(!node->has_matrix, "Currently matrix transform representations not supported!");
+
+		NodeTransform t;
+		t.Position = node->has_translation ? ToFloat3(node->translation) : Float3{ 0.0f, 0.0f, 0.0f };
+		t.Rotation = node->has_rotation ? ToQuaternion(node->rotation) : Quaternion{ 0.0f, 0.0f, 0.0f, 0.0f };
+		t.Scale = node->has_scale ? ToFloat3(node->scale) : Float3{ 1.0f, 1.0f, 1.0f };
+
+		if (node->has_matrix)
+		{
+			const auto matrixData = XMUtility::DecomposeMatrix(DirectX::XMFLOAT4X4{ node->matrix });
+			t.Position += matrixData.Position;
+			t.Rotation *= matrixData.Rotation;
+			t.Scale *= matrixData.Scale;
+		}
+
+		return t;
+	}
+
 	void Loader::LoadNode(cgltf_node* nodeData)
 	{
+		using namespace DirectX;
+
+		const XMFLOAT4X4 parentTransform = m_CurrentTransform;
+		const NodeTransform nodeTransform = GetTransform(nodeData);
+		const XMMATRIX nodeMatrix = XMMatrixAffineTransformation(nodeTransform.Scale, Float3{ 0.0f, 0.0f, 0.0f }, nodeTransform.Rotation.ToXM(), nodeTransform.Position);
+		
+		const XMMATRIX parentMatrix = XMLoadFloat4x4(&m_CurrentTransform);
+		m_CurrentTransform = XMUtility::ToXMFloat4x4(XMMatrixMultiply(parentMatrix, nodeMatrix));
+
 		std::vector<AnimationEntry> animationData = LoadAnimations(nodeData);
 		if (nodeData->mesh)
 		{
-			const DirectX::XMFLOAT4X4 transform = CalcBaseTransform(nodeData, m_PositionOrigin, m_BaseScale);
 			cgltf_mesh* mesh = nodeData->mesh;
 
 			std::vector<float> morphWeights{};
@@ -322,15 +408,35 @@ namespace ModelLoading
 			for (cgltf_size i = 0; i < mesh->primitives_count; i++)
 			{
 				cgltf_primitive* primitive = mesh->primitives + i;
-				LoadObject(primitive);
-				LoadMorph(primitive, morphWeights);
-				LoadSkin(nodeData->skin);
-
-				m_Object.ModelToWorld = transform;
-				m_Object.AnimcationData = animationData;
-				m_Scene.push_back(m_Object);
+				
+				SceneObject object{};
+				object.BoundingVolume = CalculateBoundingSphere(primitive);
+				object.ModelToWorld = m_CurrentTransform;
+				object.Mesh = LoadMesh(primitive);
+				object.Material = LoadMaterial(primitive->material);
+				object.MorphTargets = LoadMorph(primitive, morphWeights);
+				object.Skeleton = LoadSkin(nodeData->skin);
+				object.AnimcationData = animationData;
+				m_Scene.Objects.push_back(object);
 			}
 		}
+
+		if (nodeData->camera)
+		{
+			m_Scene.Cameras.push_back(LoadCamera(nodeData->camera));
+		}
+
+		if (nodeData->light)
+		{
+			m_Scene.Lights.push_back(LoadLight(nodeData->light));
+		}
+
+		for (uint32_t i = 0; i < nodeData->children_count; i++)
+		{
+			LoadNode(*(nodeData->children + i));
+		}
+
+		m_CurrentTransform = parentTransform;
 	}
 
 	std::vector<ModelLoading::AnimationEntry> Loader::LoadAnimations(cgltf_node* nodeData)
@@ -351,6 +457,7 @@ namespace ModelLoading
 			float* timeData = GetBufferData<float>(animationSampler->input);
 			uint8_t* valueData = GetBufferData<uint8_t>(animationSampler->output);
 			Float4* valueDataF4 = (Float4*)valueData;
+			Quaternion* valueDataQuat = (Quaternion*)valueData;
 			Float3* valueDataF3 = (Float3*)valueData;
 			float* valueDataF = (float*)valueData;
 
@@ -381,7 +488,7 @@ namespace ModelLoading
 						entry.KeyFrames[keyFrameIndex].Translation = *(valueDataF3 + valueIndex);
 						break;
 					case AnimTarget::Rotation:
-						entry.KeyFrames[keyFrameIndex].Rotation = *(valueDataF4 + valueIndex);
+						entry.KeyFrames[keyFrameIndex].Rotation = *(valueDataQuat + valueIndex);
 						break;
 					case AnimTarget::Scale:
 						entry.KeyFrames[keyFrameIndex].Scale = *(valueDataF3 + valueIndex);
@@ -402,11 +509,13 @@ namespace ModelLoading
 		return animations;
 	}
 
-	void Loader::LoadMorph(cgltf_primitive* meshData, const std::vector<float>& weights)
+	std::vector<MorphTarget> Loader::LoadMorph(cgltf_primitive* meshData, const std::vector<float>& weights)
 	{
-		if (weights.empty()) return;
+		if (weights.empty()) return {};
 
 		ASSERT(weights.size() == meshData->targets_count, "weights.size() != meshData->targets_count");
+
+		std::vector<MorphTarget> morphTargets;
 
 		for (cgltf_size targetIndex = 0; targetIndex < meshData->targets_count; targetIndex++)
 		{
@@ -433,38 +542,37 @@ namespace ModelLoading
 			targetData.Weight = weights[targetIndex];
 			targetData.Data = GFX::CreateBuffer(vertices.NumVertices * sizeof(MorphVertex), sizeof(MorphVertex), RCF::None, &initData);
 
-			m_Object.MorphTargets.push_back(targetData);
+			morphTargets.push_back(targetData);
 		}
+		return morphTargets;
 	}
 
-	void Loader::LoadSkin(cgltf_skin* skinData)
+	std::vector<SkeletonJoint> Loader::LoadSkin(cgltf_skin* skinData)
 	{
-		if (!skinData) return;
+		if (!skinData) return {};
+
+		std::vector<SkeletonJoint> joints;
 
 		DirectX::XMFLOAT4X4* jointMatrices = GetBufferData<DirectX::XMFLOAT4X4>(skinData->inverse_bind_matrices);
 		for (cgltf_size i = 0; i < skinData->joints_count; i++)
 		{
 			cgltf_node* jointNode = *(skinData->joints + i);
-
+			
 			SkeletonJoint joint;
 			joint.ModelToJoint = *(jointMatrices + i);
-			joint.Transform = CalcBaseTransform(jointNode, m_PositionOrigin, m_BaseScale);
+			joint.Transform = m_CurrentTransform;
 			joint.Animations = LoadAnimations(jointNode);
-			m_Object.Skeleton.push_back(joint);
+			joints.push_back(joint);
 		}
+
+		return joints;
 	}
 
-	void Loader::LoadObject(cgltf_primitive* objectData)
-	{
-		m_Object = SceneObject{};
-		m_Object.BoundingVolume = CalculateBoundingSphere(objectData);
-		LoadMesh(objectData);
-		LoadMaterial(objectData->material);
-	}
-
-	void Loader::LoadMesh(cgltf_primitive* meshData)
+	MeshData Loader::LoadMesh(cgltf_primitive* meshData)
 	{
 		ASSERT(meshData->type == cgltf_primitive_type_triangles, "[SceneLoading] Scene contains quad meshes. We are supporting just triangle meshes.");
+
+		MeshData mesh;
 
 		const uint32_t vertCount = (uint32_t) meshData->attributes[0].data->count;
 
@@ -502,23 +610,28 @@ namespace ModelLoading
 			return GFX::CreateBuffer(numElements * stride, stride, RCF::None, &initData);
 		};
 
-		m_Object.Positions = createBuffer(vertices.Positions, sizeof(DirectX::XMFLOAT3), vertCount);
-		m_Object.Texcoords = createBuffer(vertices.Texcoords, sizeof(DirectX::XMFLOAT2), vertCount);
-		m_Object.Normals = createBuffer(vertices.Normals, sizeof(DirectX::XMFLOAT3), vertCount);
-		m_Object.Tangents = createBuffer(vertices.Tangents, sizeof(DirectX::XMFLOAT4), vertCount);
-		m_Object.Weights = createBuffer(vertices.Weights, sizeof(Float4), vertCount);
-		m_Object.Joints = createBuffer(joints.empty() ? nullptr : joints.data(), sizeof(uint32_t) * 4, vertCount);
-		m_Object.Indices = createBuffer(indices.empty() ? nullptr : indices.data(), sizeof(uint32_t), (uint32_t) indices.size());
+		mesh.Positions = createBuffer(vertices.Positions, sizeof(DirectX::XMFLOAT3), vertCount);
+		mesh.Texcoords = createBuffer(vertices.Texcoords, sizeof(DirectX::XMFLOAT2), vertCount);
+		mesh.Normals = createBuffer(vertices.Normals, sizeof(DirectX::XMFLOAT3), vertCount);
+		mesh.Tangents = createBuffer(vertices.Tangents, sizeof(DirectX::XMFLOAT4), vertCount);
+		mesh.Weights = createBuffer(vertices.Weights, sizeof(Float4), vertCount);
+		mesh.Joints = createBuffer(joints.empty() ? nullptr : joints.data(), sizeof(uint32_t) * 4, vertCount);
+		mesh.Indices = createBuffer(indices.empty() ? nullptr : indices.data(), sizeof(uint32_t), (uint32_t)indices.size());
+		mesh.PrimitiveCount = mesh.Indices ? (uint32_t) indices.size() : vertices.NumVertices;
+
+		return mesh;
 	}
 
-	void Loader::LoadMaterial(cgltf_material* materialData)
+	MaterialData Loader::LoadMaterial(cgltf_material* materialData)
 	{
+		MaterialData material{};
+
 		if (!materialData || !materialData->has_pbr_metallic_roughness)
 		{
-			m_Object.Albedo = LoadTexture(nullptr);
-			m_Object.Normal = LoadTexture(nullptr, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
-			m_Object.MetallicRoughness = LoadTexture(nullptr);
-			return;
+			material.Albedo = LoadTexture(nullptr);
+			material.Normal = LoadTexture(nullptr, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
+			material.MetallicRoughness = LoadTexture(nullptr);
+			return material;
 		}
 
 		cgltf_pbr_metallic_roughness& mat = materialData->pbr_metallic_roughness;
@@ -526,22 +639,24 @@ namespace ModelLoading
 		switch (materialData->alpha_mode)
 		{
 		case cgltf_alpha_mode_blend:
-			m_Object.MatType = SceneObject::MaterialType::ALPHA_BLEND; break;
+			material.MatType = MaterialData::MaterialType::ALPHA_BLEND; break;
 		case cgltf_alpha_mode_mask:
-			m_Object.MatType = SceneObject::MaterialType::ALPHA_DISCARD; break;
+			material.MatType = MaterialData::MaterialType::ALPHA_DISCARD; break;
 		case cgltf_alpha_mode_opaque:
-			m_Object.MatType = SceneObject::MaterialType::OPAQUE; break;
+			material.MatType = MaterialData::MaterialType::OPAQUE; break;
 		default:
 			NOT_IMPLEMENTED;
 		}
 
-		m_Object.AlbedoFactor = ToFloat3(mat.base_color_factor);
-		m_Object.MetallicFactor = mat.metallic_factor;
-		m_Object.RoughnessFactor = mat.roughness_factor;
+		material.AlbedoFactor = ToFloat3(mat.base_color_factor);
+		material.MetallicFactor = mat.metallic_factor;
+		material.RoughnessFactor = mat.roughness_factor;
 
-		m_Object.Albedo = LoadTexture(mat.base_color_texture.texture);
-		m_Object.Normal = LoadTexture(materialData->normal_texture.texture, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
-		m_Object.MetallicRoughness = LoadTexture(mat.metallic_roughness_texture.texture);
+		material.Albedo = LoadTexture(mat.base_color_texture.texture);
+		material.Normal = LoadTexture(materialData->normal_texture.texture, ColorUNORM(0.5f, 0.5f, 1.0f, 1.0f));
+		material.MetallicRoughness = LoadTexture(mat.metallic_roughness_texture.texture);
+
+		return material;
 	}
 
 	Texture* Loader::LoadTexture(cgltf_texture* textureData, ColorUNORM defaultColor)
@@ -568,16 +683,16 @@ namespace ModelLoading
 
 	void Free(GraphicsContext& context, SceneObject& sceneObject)
 	{
-		Free(context, &sceneObject.Positions);
-		Free(context, &sceneObject.Texcoords);
-		Free(context, &sceneObject.Normals);
-		Free(context, &sceneObject.Tangents);
-		Free(context, &sceneObject.Weights);
-		Free(context, &sceneObject.Joints);
-		Free(context, &sceneObject.Indices);
-		Free(context, &sceneObject.Albedo);
-		Free(context, &sceneObject.Normal);
-		Free(context, &sceneObject.MetallicRoughness);
+		Free(context, &sceneObject.Mesh.Positions);
+		Free(context, &sceneObject.Mesh.Texcoords);
+		Free(context, &sceneObject.Mesh.Normals);
+		Free(context, &sceneObject.Mesh.Tangents);
+		Free(context, &sceneObject.Mesh.Weights);
+		Free(context, &sceneObject.Mesh.Joints);
+		Free(context, &sceneObject.Mesh.Indices);
+		Free(context, &sceneObject.Material.Albedo);
+		Free(context, &sceneObject.Material.Normal);
+		Free(context, &sceneObject.Material.MetallicRoughness);
 
 		for (MorphTarget& morphTarget : sceneObject.MorphTargets)
 		{
@@ -585,11 +700,11 @@ namespace ModelLoading
 		}
 	}
 	
-	void Free(std::vector<SceneObject>& scene)
+	void Free(Scene& scene)
 	{
 		GraphicsContext& context = ContextManager::Get().GetCreationContext();
 		GFX::Cmd::BeginRecording(context);
-		for (SceneObject& sceneObject : scene) Free(context, sceneObject);
+		for (SceneObject& sceneObject : scene.Objects) Free(context, sceneObject);
 		GFX::Cmd::EndRecordingAndSubmit(context);
 	}
 }

@@ -20,6 +20,8 @@ struct ViewFrustum
 
 struct Camera
 {
+	static float s_CameraSpeed;
+
 	struct CameraConstantData
 	{
 		DirectX::XMFLOAT4X4 WorldToView;
@@ -36,6 +38,7 @@ struct Camera
 	static Camera CreateOrtho(float rectWidth, float rectHeight, float znear, float zfar);
 
 	void Update(float dt);
+	void UpdateConstantData();
 
 	enum class CameraType
 	{

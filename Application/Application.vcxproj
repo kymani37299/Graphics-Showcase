@@ -18,6 +18,8 @@
     <ClCompile Include="Clouds\CloudsAppGUI.cpp" />
     <ClCompile Include="Common\Camera.cpp" />
     <ClCompile Include="Common\ConstantBuffer.cpp" />
+    <ClCompile Include="VolumetricLights\VolumetricLightsApp.cpp" />
+    <ClCompile Include="VolumetricLights\VolumetricLightsAppGUI.cpp" />
     <None Include="Clouds\Shaders\clouds.hlsl">
       <FileType>Document</FileType>
     </None>
@@ -43,6 +45,9 @@
     <ClInclude Include="Grass\GrassAppGUI.h" />
     <ClInclude Include="Grass\Settings.h" />
     <ClInclude Include="Grass\Shaders\grass.h" />
+    <ClInclude Include="VolumetricLights\Settings.h" />
+    <ClInclude Include="VolumetricLights\VolumetricLightsApp.h" />
+    <ClInclude Include="VolumetricLights\VolumetricLightsAppGUI.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Clouds\Shaders\worley_noise.hlsl">
@@ -86,6 +91,26 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Grass\Shaders\prepare_draw.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="VolumetricLights\Shaders\background.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="VolumetricLights\Shaders\scene.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="VolumetricLights\Shaders\shadowmap.hlsl">
+      <FileType>Document</FileType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="VolumetricLights\Shaders\volumetric_fog.hlsl">
       <FileType>Document</FileType>
     </None>
   </ItemGroup>

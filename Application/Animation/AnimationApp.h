@@ -42,5 +42,5 @@ private:
 
 	bool m_EnableWeightAnimation = true;
 	float m_AnimationTime = 0.0f;
-	std::vector<ModelLoading::SceneObject> m_SceneObjects;
+	ModelLoading::Scene m_Scene;
 };

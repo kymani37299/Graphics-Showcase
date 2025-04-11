@@ -25,7 +25,7 @@ namespace AnimationAppGUI
 			ImGui::Checkbox("Weight animation", &m_Application->m_EnableWeightAnimation);
 
 			uint32_t objectIndex = 0;
-			for (ModelLoading::SceneObject& object : m_Application->m_SceneObjects)
+			for (ModelLoading::SceneObject& object : m_Application->m_Scene.Objects)
 			{
 				if (object.MorphTargets.empty()) continue;
 

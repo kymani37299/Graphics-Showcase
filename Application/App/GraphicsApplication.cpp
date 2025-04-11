@@ -11,6 +11,7 @@
 #include "Animation/AnimationApp.h"
 #include "Clouds/CloudsApp.h"
 #include "Grass/GrassApp.h"
+#include "VolumetricLights/VolumetricLightsApp.h"
 
 #define ADD_SAMPLE(Index, Class, Name) m_NumSamples = max(m_NumSamples, Index+1); if(m_SampleNames.size() < Index+1) m_SampleNames.resize(Index+1); m_SampleNames[Index] = Name;
 void GraphicsApplication::RegisterSamples()

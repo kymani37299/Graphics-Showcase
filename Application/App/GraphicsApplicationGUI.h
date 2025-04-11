@@ -4,6 +4,7 @@
 #include <Engine/Gui/ImGui_Core.h>
 
 #include "App/GraphicsApplication.h"
+#include "Common/Camera.h"
 
 class GraphicsApplicationGUI : public GUIElement
 {
@@ -57,6 +58,10 @@ protected:
 		ImGui::Text("G    - Togggle gui");
 		ImGui::Text("Z    - Previous sample");
 		ImGui::Text("X    - Next sample");
+
+		ImGui::Separator();
+
+		ImGui::DragFloat("Camera speed", &Camera::s_CameraSpeed, 0.1f);
 	}
 };
 

@@ -16,6 +16,10 @@ struct cgltf_material;
 struct cgltf_texture;
 struct cgltf_animation_channel;
 struct cgltf_skin;
+struct cgltf_scene;
+struct cgltf_light;
+struct cgltf_mesh;
+struct cgltf_camera;
 
 #undef OPAQUE
 
@@ -35,7 +39,6 @@ namespace ModelLoading
 		Invalid,
 		Step,
 		Lerp,
-		SLerp,
 		Cubic,
 	};
 
@@ -44,7 +47,7 @@ namespace ModelLoading
 		float Time;
 		union
 		{
-			Float4 Rotation = Float4{0.0f, 0.0f, 0.0f, 0.0f};
+			Quaternion Rotation = Quaternion{0.0f, 0.0f, 0.0f, 0.0f};
 			Float3 Translation;
 			Float3 Scale;
 			float Weight;
@@ -88,17 +91,9 @@ namespace ModelLoading
 		float Radius = 1.0f;
 	};
 
-	struct SceneObject
+	struct MeshData
 	{
-		enum class MaterialType 
-		{
-			OPAQUE, 
-			ALPHA_DISCARD, 
-			ALPHA_BLEND
-		};
-
-		BoundingSphere BoundingVolume;
-		DirectX::XMFLOAT4X4 ModelToWorld;
+		uint32_t PrimitiveCount = 0;
 
 		Buffer* Positions = nullptr;	// float3
 		Buffer* Texcoords = nullptr;	// float2
@@ -107,6 +102,16 @@ namespace ModelLoading
 		Buffer* Weights = nullptr;		// float4
 		Buffer* Joints = nullptr;		// uint4
 		Buffer* Indices = nullptr;		// uint32_t
+	};
+
+	struct MaterialData
+	{
+		enum class MaterialType
+		{
+			OPAQUE,
+			ALPHA_DISCARD,
+			ALPHA_BLEND
+		};
 
 		MaterialType MatType = MaterialType::OPAQUE;
 
@@ -117,10 +122,58 @@ namespace ModelLoading
 		Texture* Albedo = nullptr;
 		Texture* Normal = nullptr;
 		Texture* MetallicRoughness = nullptr;
+	};
+
+	struct SceneObject
+	{
+		BoundingSphere BoundingVolume;
+		DirectX::XMFLOAT4X4 ModelToWorld;
+
+		MeshData Mesh;
+		MaterialData Material;
 
 		std::vector<AnimationEntry> AnimcationData;
 		std::vector<MorphTarget> MorphTargets;
 		std::vector<SkeletonJoint> Skeleton;
+
+	};
+
+	struct SceneCamera
+	{
+		Float3 Position{};
+		Quaternion Rotation{};
+		bool IsOrtho = false;
+
+		float ZFar;
+		float ZNear;
+
+		float FOV;
+	};
+
+	struct SceneLight
+	{
+		enum class LightType
+		{
+			Directional,
+			Point,
+			Spot
+		};
+
+		Float3 Position{};
+		Float3 Direction{};
+		Float3 Color{};
+		float Strength = 0.0f;
+		LightType Type = LightType::Point;
+		float Range = 0.0f;
+		float InnerConeAngle = 0.0f;
+		float OuterConeAngle = 0.0f;
+	};
+
+	struct Scene
+	{
+		std::vector<SceneCamera> Cameras;
+		std::vector<SceneObject> Objects;
+		std::vector<SceneLight> Lights;
 	};
 
 	class Loader
@@ -130,36 +183,35 @@ namespace ModelLoading
 			m_Context(context)
 		{}
 
-		std::vector<SceneObject> Load(const std::string& path);
-
-		void SetPositionOrigin(const Float3& origin) { m_PositionOrigin = origin; }
-		void SetBaseScale(const Float3& scale) { m_BaseScale = scale; }
+		Scene Load(const std::string& path);
 
 	private:
 		void FillNodeAnimationMap(cgltf_data* sceneData);
+
+		Scene LoadScene(cgltf_scene* scene);
 		void LoadNode(cgltf_node* nodeData);
+		SceneCamera LoadCamera(cgltf_camera* cameraNode);
+		SceneLight LoadLight(cgltf_light* lightNode);
+
 		std::vector<AnimationEntry> LoadAnimations(cgltf_node* nodeData);
-		void LoadMorph(cgltf_primitive* meshData, const std::vector<float>& weights);
-		void LoadSkin(cgltf_skin* skinData);
-;		void LoadObject(cgltf_primitive* objectData);
-		void LoadMesh(cgltf_primitive* meshData);
-		void LoadMaterial(cgltf_material* materialData);
+		std::vector<MorphTarget> LoadMorph(cgltf_primitive* meshData, const std::vector<float>& weights);
+		std::vector<SkeletonJoint> LoadSkin(cgltf_skin* skinData);
+		MeshData LoadMesh(cgltf_primitive* meshData);
+		MaterialData LoadMaterial(cgltf_material* materialData);
 		Texture* LoadTexture(cgltf_texture* textureData, ColorUNORM defaultColor = {0.0f, 0.0f, 0.0f, 0.0f});
 
 	private:
 		// Configurations
 		GraphicsContext& m_Context;
 		uint32_t m_TextureNumMips = 1;
-		Float3 m_PositionOrigin{ 0.0f, 0.0f, 0.0f };
-		Float3 m_BaseScale{ 1.0f, 1.0f, 1.0f };
 
 		// Intermediate variables
-		std::vector<SceneObject> m_Scene;
-		SceneObject m_Object;
+		Scene m_Scene;
+		DirectX::XMFLOAT4X4 m_CurrentTransform;
 		std::string m_DirectoryPath;
 		std::unordered_map<cgltf_node*, std::vector<cgltf_animation_channel*>> m_NodeAnimationMap;
 	};
 
 	void Free(GraphicsContext& context, SceneObject& sceneObject);
-	void Free(std::vector<SceneObject>& scene);
+	void Free(Scene& scene);
 }

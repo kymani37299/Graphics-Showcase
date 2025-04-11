@@ -186,6 +186,84 @@ struct Float4
 	operator DirectX::XMVECTOR() const { return ToXM(); }
 };
 
+struct Quaternion
+{
+	Quaternion() : x(0), y(0), z(0), w(0) {}
+	Quaternion(float _xyzw) : x(_xyzw), y(_xyzw), z(_xyzw), w(_xyzw) {}
+	Quaternion(float _x, float _y, float _z, float _w) : x(_x), y(_y), z(_z), w(_w) {}
+	Quaternion(Float3 _xyz, float _w) : x(_xyz.x), y(_xyz.y), z(_xyz.z), w(_w) {}
+	Quaternion(Float2 _xy, Float2 _zw) : x(_xy.x), y(_xy.y), z(_zw.x), w(_zw.y) {}
+	Quaternion(float _x, Float3 _yzw) : x(_x), y(_yzw.x), z(_yzw.y), w(_yzw.z) {}
+	Quaternion(float _x, Float2 _yz, float _w) : x(_x), y(_yz.x), z(_yz.y), w(_w) {}
+	Quaternion(Float4 _xyzw) : x(_xyzw.x), y(_xyzw.y), z(_xyzw.z), w(_xyzw.w) {}
+	Quaternion(DirectX::XMFLOAT4 xm) : x(xm.x), y(xm.y), z(xm.z), w(xm.w) {}
+	Quaternion(DirectX::XMVECTOR xm)
+	{
+		DirectX::XMFLOAT4 xmf;
+		DirectX::XMStoreFloat4(&xmf, xm);
+		x = xmf.x;
+		y = xmf.y;
+		z = xmf.z;
+		w = xmf.w;
+	}
+
+	float x;
+	float y;
+	float z;
+	float w;
+
+	std::string ToString() const { return "(" + std::to_string(x) + ", " + std::to_string(y) + ", " + std::to_string(z) + ", " + std::to_string(w) + ")"; }
+	DirectX::XMVECTOR ToXM() const { return DirectX::XMVectorSet(x, y, z, w); }
+	DirectX::XMFLOAT4 ToXMF() const { return DirectX::XMFLOAT4{ x,y,z,w }; }
+	DirectX::XMFLOAT4A ToXMFA() const { return DirectX::XMFLOAT4A{ x,y,z,w }; }
+
+	Float3 RotateVector(const Float3& v) const
+	{
+		const Quaternion qv{ v, 0.0f };
+		const Quaternion qc{ -x, -y, -z, -w };
+		const Quaternion q = *this;
+
+		const Quaternion r = q * (qv * qc);
+		return Float3{ r.x, r.y, r.z };
+	}
+
+	// (Pitch, Yaw, Roll)
+	Float3 ToEuler() const
+	{
+		Float3 result;
+
+		// pitch (y-axis rotation)
+		float sinp = std::sqrt(1 + 2 * (w * y - x * z));
+		float cosp = std::sqrt(1 - 2 * (w * y - x * z));
+		result.x = 2 * std::atan2(sinp, cosp) - 3.1415f / 2;
+
+		// yaw (z-axis rotation)
+		float siny_cosp = 2 * (w * z + x * y);
+		float cosy_cosp = 1 - 2 * (y * y + z * z);
+		result.y = std::atan2(siny_cosp, cosy_cosp);
+
+		// roll (x-axis rotation)
+		float sinr_cosp = 2 * (w * x + y * z);
+		float cosr_cosp = 1 - 2 * (x * x + y * y);
+		result.z = std::atan2(sinr_cosp, cosr_cosp);
+
+		return result;
+	}
+
+	Quaternion& operator*=(const Quaternion& x)
+	{
+		*this = *this * x;
+		return *this;
+	}
+
+	friend Quaternion operator*(const Quaternion& l, const Quaternion& r)
+	{
+		const Float3 l3{ l.x, l.y, l.z };
+		const Float3 r3{ r.x, r.y, r.z };
+		return Quaternion{ r3 * l.w + l3 * r.w + l3.Cross(r3), l.w * r.w - l3.Dot(r3) };
+	}
+};
+
 struct ColorUNORM
 {
 	ColorUNORM() : r(0), g(0), b(0), a(0) {}
@@ -228,6 +306,28 @@ namespace XMUtility
 		XMMATRIX xmMatrix = XMLoadFloat4x4(&matrix);
 		xmMatrix = XMMatrixTranspose(xmMatrix);
 		return ToXMFloat4x4(xmMatrix);
+	}
+
+	struct TransformData
+	{
+		Float3 Position;
+		Quaternion Rotation;
+		Float3 Scale;
+	};
+
+	inline TransformData DecomposeMatrix(const DirectX::XMFLOAT4X4& matrix)
+	{
+		using namespace DirectX;
+
+		const XMMATRIX xmmatrix = XMLoadFloat4x4(&matrix);
+		XMVECTOR xmScale, xmRot, xmTrans;
+		XMMatrixDecompose(&xmScale, &xmRot, &xmTrans, xmmatrix);
+
+		TransformData t;
+		t.Position = Float3{ xmTrans };
+		t.Rotation = Quaternion{ xmRot };
+		t.Scale = Float3{ xmScale };
+		return t;
 	}
 }
 

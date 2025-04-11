@@ -70,7 +70,7 @@ void ViewFrustum::Update(const Camera& c)
 	}
 	else
 	{
-		NOT_IMPLEMENTED;
+		// NOT_IMPLEMENTED;
 	}
 }
 
@@ -83,6 +83,8 @@ bool ViewFrustum::IsInFrustum(const BoundingSphere& sphere)
 	}
 	return true;
 }
+
+float Camera::s_CameraSpeed = 1.0f;
 
 Camera Camera::CreatePerspective(float fov, float aspect, float znear, float zfar)
 {
@@ -102,7 +104,7 @@ Camera Camera::CreateOrtho(float rectWidth, float rectHeight, float znear, float
 	cam.RectWidth = rectWidth;
 	cam.RectHeight = rectHeight;
 	cam.ZNear = znear;
-	cam.ZFar;
+	cam.ZFar = zfar;
 	return cam;
 }
 
@@ -113,7 +115,7 @@ void Camera::Update(float dt)
 		float dtSec = dt / 1000.0f;
 
 		const float movement_speed = 10.0f;
-		const float mouse_speed = 1000.0f;
+		const float mouse_speed = s_CameraSpeed * 1000.0f;
 		char mov_inputs[] = { 'W', 'S', 'A', 'D', 'Q', 'E' };
 		Float3 mov_effects[] = { {0.0f, 0.0f, 1.0f},{0.0f, 0.0f, -1.0f},{1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f},{0.0f, -1.0f, 0.0f},{0.0f, 1.0f, 0.0f} };
 		static_assert(STATIC_ARRAY_SIZE(mov_inputs) == STATIC_ARRAY_SIZE(mov_effects));
@@ -164,6 +166,11 @@ void Camera::Update(float dt)
 		Rotation.x = std::clamp(Rotation.x, -1.5f, 1.5f);
 	}
 
+	UpdateConstantData();
+}
+
+void Camera::UpdateConstantData()
+{
 	// Update transforms
 	{
 		using namespace DirectX;

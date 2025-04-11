@@ -81,9 +81,9 @@ void GrassApp::OnInit(GraphicsContext& context)
 	const auto loadGrassModel = [&loader, &context](ModelLoading::SceneObject& sceneObject, const std::string path)
 	{
 		auto scene = loader.Load(path);
-		ASSERT_CORE(!scene.empty(), "Failed to load a grass object!");
-		sceneObject = scene[0];
-		for (uint32_t i = 1; i < scene.size(); i++) ModelLoading::Free(context, scene[i]);
+		ASSERT_CORE(!scene.Objects.empty(), "Failed to load a grass object!");
+		sceneObject = scene.Objects[0];
+		for (uint32_t i = 1; i < scene.Objects.size(); i++) ModelLoading::Free(context, scene.Objects[i]);
 	};
 	loadGrassModel(regularGrass.LowPoly, "Application/Grass/Resources/grass_lowpoly.gltf");
 	loadGrassModel(regularGrass.HighPoly, "Application/Grass/Resources/grass_highpoly.gltf");
@@ -222,8 +222,8 @@ Texture* GrassApp::OnDraw(GraphicsContext& context)
 		cb.Add(planeParams);
 		cb.Add(GrassPatchSubdivision);
 		cb.Add(maxPatchInstances);
-		cb.Add(m_GrassMaterials[0].HighPoly.Indices->ByteSize / m_GrassMaterials[0].HighPoly.Indices->Stride);
-		cb.Add(m_GrassMaterials[0].LowPoly.Indices->ByteSize / m_GrassMaterials[0].LowPoly.Indices->Stride);
+		cb.Add(m_GrassMaterials[0].HighPoly.Mesh.PrimitiveCount);
+		cb.Add(m_GrassMaterials[0].LowPoly.Mesh.PrimitiveCount);
 		cb.Add(m_Camera.Position);
 		cb.Add(0.0f); // Padding
 		cb.Add(GrassPerfSettings);
@@ -280,17 +280,17 @@ Texture* GrassApp::OnDraw(GraphicsContext& context)
 		state.CommandSignature.pArgumentDescs = indirectArguments;
 		state.CommandSignature.NodeMask = 0;
 
-		state.VertexBuffers[0] = m_GrassMaterials[0].HighPoly.Positions;
-		state.VertexBuffers[1] = m_GrassMaterials[0].HighPoly.Texcoords;
-		state.IndexBuffer = m_GrassMaterials[0].HighPoly.Indices;
+		state.VertexBuffers[0] = m_GrassMaterials[0].HighPoly.Mesh.Positions;
+		state.VertexBuffers[1] = m_GrassMaterials[0].HighPoly.Mesh.Texcoords;
+		state.IndexBuffer = m_GrassMaterials[0].HighPoly.Mesh.Indices;
 		ID3D12CommandSignature* commandSignature = context.ApplyState(state);
 		GFX::Cmd::TransitionResource(context, m_IndirectArgsBufferHP.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 		GFX::Cmd::TransitionResource(context, m_IndirectArgsCountBufferHP.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 		context.CmdList->ExecuteIndirect(commandSignature, (UINT)MAX_INDIRECT_ARGUMENTS_COUNT, m_IndirectArgsBufferHP->Handle.Get(), 0, m_IndirectArgsCountBufferHP->Handle.Get(), 0);
 		
-		state.VertexBuffers[0] = m_GrassMaterials[0].LowPoly.Positions;
-		state.VertexBuffers[1] = m_GrassMaterials[0].LowPoly.Texcoords;
-		state.IndexBuffer = m_GrassMaterials[0].LowPoly.Indices;
+		state.VertexBuffers[0] = m_GrassMaterials[0].LowPoly.Mesh.Positions;
+		state.VertexBuffers[1] = m_GrassMaterials[0].LowPoly.Mesh.Texcoords;
+		state.IndexBuffer = m_GrassMaterials[0].LowPoly.Mesh.Indices;
 		commandSignature = context.ApplyState(state);
 		GFX::Cmd::TransitionResource(context, m_IndirectArgsBufferLP.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 		GFX::Cmd::TransitionResource(context, m_IndirectArgsCountBufferLP.get(), D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);

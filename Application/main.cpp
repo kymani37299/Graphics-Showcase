@@ -7,6 +7,7 @@ Application* Main(ApplicationConfiguration& appConfig)
 	AppConfig.WindowTitle = "Graphics showcase";
 	AppConfig.WindowWidth = 1024;
 	AppConfig.WindowHeight = 768;
+	AppConfig.VSyncEnabled = true;
 
 	return new GraphicsApplication();
 }

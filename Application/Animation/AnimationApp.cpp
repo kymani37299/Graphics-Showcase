@@ -15,32 +15,8 @@
 void AnimationApp::OnInit(GraphicsContext& context)
 {
 	ModelLoading::Loader loader{ context };
-	const auto loadModel = [&loader](const std::string& path)
-	{
-		auto scene = loader.Load(path);
-		ASSERT_CORE(!scene.empty(), "Animation sample missing assets!");
-		return scene[0];
-	};
+	m_Scene = loader.Load("Application/Animation/Resources/scene.gltf");
 	
-	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedTriangle/AnimatedTriangle.gltf"));
-	loader.SetPositionOrigin({ 4.0f, 0.0f, -1.0f });
-	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedCube/AnimatedCube.gltf"));
-	loader.SetPositionOrigin({ 8.0f, 0.0f, -1.0f });
-	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedMorphCube/AnimatedMorphCube.gltf"));
-	loader.SetPositionOrigin({ 12.0f, 0.0f, -1.0f });
-	m_SceneObjects.push_back(loadModel("Application/Animation/Resources/AnimatedMorphSphere/AnimatedMorphSphere.gltf"));
-	loader.SetPositionOrigin({ 16.0f, 0.0f, -1.0f });
-	//m_SceneObjects.push_back(loadModel("Application/Animation/Resources/SimpleSkin/SimpleSkin.gltf"));
-	//loader.SetPositionOrigin({ 20.0f, 0.0f, -1.0f });
-
-	auto scene = loader.Load("Application/Animation/Resources/SkinnedManequin.gltf");
-	m_SceneObjects.push_back(scene[0]);
-	m_SceneObjects.push_back(scene[1]);
-
-	m_SceneObjects[0].AlbedoFactor = Float3{ 0.2f, 0.2f, 0.8f };
-	m_SceneObjects[2].AlbedoFactor = Float3{ 0.2f, 0.9f, 0.2f };
-	m_SceneObjects[3].AlbedoFactor = Float3{ 0.9f, 0.2f, 0.4f };
-
 	m_GeometryShader = ScopedRef<Shader>(new Shader{ "Application/Animation/geometry.hlsl" });
 	m_BackgroundShader = ScopedRef<Shader>(new Shader("Application/Animation/background.hlsl"));
 	m_EmptyBuffer = ScopedRef<Buffer>(GFX::CreateBuffer(1, 1, RCF::None));
@@ -49,11 +25,12 @@ void AnimationApp::OnInit(GraphicsContext& context)
 	m_Camera.Rotation = Float3(-0.15f, -1.6f, 0.0f);
 
 	AnimationAppGUI::AddGUI(this);
+	OnWindowResize(context);
 }
 
 void AnimationApp::OnDestroy(GraphicsContext& context)
 {
-	for (ModelLoading::SceneObject& obj : m_SceneObjects)
+	for (ModelLoading::SceneObject& obj : m_Scene.Objects)
 	{
 		ModelLoading::Free(context, obj);
 	}
@@ -91,7 +68,7 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 	state.DepthStencilState.DepthEnable = true;
 	state.Table.SMPs[0] = Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 	
-	for (const ModelLoading::SceneObject& object : m_SceneObjects)
+	for (const ModelLoading::SceneObject& object : m_Scene.Objects)
 	{
 		state.ShaderConfig.clear();
 		
@@ -101,13 +78,13 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 		cb.Add(m_Camera.ConstantData);
 		cb.Add(XMUtility::ToHLSLFloat4x4(animationTransform));
 		cb.Add(XMUtility::ToHLSLFloat4x4(object.ModelToWorld));
-		cb.Add(object.AlbedoFactor);
+		cb.Add(object.Material.AlbedoFactor);
 
-		state.Table.SRVs[0] = object.Albedo;
-		state.VertexBuffers[0] = object.Positions;
-		state.VertexBuffers[1] = object.Texcoords;
-		state.VertexBuffers[2] = object.Normals;
-		state.IndexBuffer = object.Indices;
+		state.Table.SRVs[0] = object.Material.Albedo;
+		state.VertexBuffers[0] = object.Mesh.Positions;
+		state.VertexBuffers[1] = object.Mesh.Texcoords;
+		state.VertexBuffers[2] = object.Mesh.Normals;
+		state.IndexBuffer = object.Mesh.Indices;
 		state.Shader = m_GeometryShader.get();
 
 		// Object is using morphs
@@ -146,8 +123,8 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 			ASSERT(object.Skeleton.size() < MaxSkeletonJoints, "Too much skeleton joints!");
 
 			state.ShaderConfig.push_back("APPLY_SKIN");
-			state.VertexBuffers[3] = object.Weights;
-			state.VertexBuffers[4] = object.Joints;
+			state.VertexBuffers[3] = object.Mesh.Weights;
+			state.VertexBuffers[4] = object.Mesh.Joints;
 
 			std::vector<DirectX::XMFLOAT4X4> jointTransforms;
 			std::vector<DirectX::XMFLOAT4X4> jointAnimationTransformations;
@@ -172,8 +149,7 @@ Texture* AnimationApp::OnDraw(GraphicsContext& context)
 
 		state.Table.CBVs[0] = cb.GetBuffer(context);
 		context.ApplyState(state);
-		const uint32_t numIndices = object.Indices->ByteSize / object.Indices->Stride;
-		context.CmdList->DrawIndexedInstanced(numIndices, 1, 0, 0, 0);
+		context.CmdList->DrawIndexedInstanced(object.Mesh.PrimitiveCount, 1, 0, 0, 0);
 	}
 
 	GFX::Cmd::MarkerEnd(context);

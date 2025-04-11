@@ -14,9 +14,12 @@ namespace MathUtility
 	template<typename T>
 	T Lerp(const T& a, const T& b, float t) { return a + t * (b - a); }
 
-	template<typename T>
-	inline T Slerp(T a, T b, float t)
+	template<>
+	inline Quaternion Lerp(const Quaternion& qa, const Quaternion& qb, float t)
 	{
+		Float4 a{ qa.x, qa.y, qa.z, qa.w };
+		Float4 b{ qb.x, qb.y, qb.z, qb.w };
+
 		float cosTheta = a.Dot(b);
 
 		if (cosTheta < 0.0f)
@@ -42,6 +45,13 @@ namespace MathUtility
 		return factorA * a + factorB * b;
 	}
 
-	template<>
-	inline float Slerp(float a, float b, float t) { return Lerp(a, b, t); }
+	inline Float3 QuaternionToEulerAngles(const Float4& quat)
+	{
+		Float3 result; // (Pitch, Yaw, Roll)
+		result.x = atan2(2.0f * quat.x * quat.w - 2.0f * quat.y * quat.z, 1.0f - 2.0f * quat.x * quat.x - 2.0f * quat.z * quat.z);
+		result.y = atan2(2.0f * quat.y * quat.w - 2.0f * quat.x * quat.z, 1.0f - 2.0f * quat.y * quat.y - 2.0f * quat.z * quat.z);
+		result.z = asin(2.0f * quat.x * quat.y + 2.0f * quat.z * quat.w);
+		return result;
+	}
+
 }
