@@ -7,10 +7,7 @@ cbuffer Constants : register(b0)
 
 struct SamplePoint
 {
-	float3 r;
-	float3 g;
-	float3 b;
-	float3 a;
+	float3 Samples[4];
 };
 
 StructuredBuffer<SamplePoint> Points : register(t0);
@@ -35,28 +32,10 @@ float4 GetDistanceFromPoint(float3 position, SamplePoint p)
 		{
 			for (float k = -1.0f; k <= 1.0f; k++)
 			{
-				// R
+				for (uint l = 0; l < 4; l++)
 				{
-					float pointDist = SquaredDistance(position, p.r + float3(i, j, k));
-					minDistance.r = min(pointDist, minDistance.r);
-				}
-
-				// G
-				{
-					float pointDist = SquaredDistance(position, p.g + float3(i, j, k));
-					minDistance.g = min(pointDist, minDistance.g);
-				}
-
-				// B
-				{
-					float pointDist = SquaredDistance(position, p.b + float3(i, j, k));
-					minDistance.b = min(pointDist, minDistance.b);
-				}
-
-				// A
-				{
-					float pointDist = SquaredDistance(position, p.a + float3(i, j, k));
-					minDistance.a = min(pointDist, minDistance.a);
+					float pointDist = SquaredDistance(position, p.Samples[l] + float3(i, j, k));
+					minDistance[l] = min(pointDist, minDistance[l]);
 				}
 			}
 		}

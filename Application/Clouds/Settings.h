@@ -28,8 +28,8 @@ struct CloudsSettingsCB
 	float SunPhaseValue = 0.8f;
 
 	// Raymach num steps
-	float CloudMarchNumSteps = 12.0f;
-	float LightMarchNumSteps = 6.0f;
+	float CloudMarchStepSize = 4.0f;
+	float LightMarchStepSize = 2.0f;
 };
 
 struct SunSettingsCB

@@ -70,8 +70,8 @@ public:
 	void CopyToSwapchain(GraphicsContext& context, Texture* texture);
 	void EndFrame(GraphicsContext& context);
 
+	ID3D12Device2* GetHandle() const { return m_Handle.Get(); }
 	const DeviceSpecification& GetSpec() const { return m_Specification; }
-	ID3D12Device* GetHandle() const { return m_Handle.Get(); }
 	D3D12MA::Allocator* GetAllocator() const { return m_Allocator.Get(); }
 	DeviceMemory& GetMemory() { return m_Memory; }
 	DeferredTaskExecutor& GetTaskExecutor() { return m_TaskExecutor; }
@@ -81,7 +81,7 @@ private:
 	DeviceSpecification m_Specification;
 
 	ComPtr<IDXGIFactory4> m_DXGIFactory;
-	ComPtr<ID3D12Device> m_Handle;
+	ComPtr<ID3D12Device2> m_Handle;
 	ComPtr<D3D12MA::Allocator> m_Allocator;
 
 	ComPtr<ID3D12CommandQueue> m_CommandQueue;

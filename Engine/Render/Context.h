@@ -187,7 +187,7 @@ struct GraphicsContext
 
 	bool Closed = false;
 	ComPtr<ID3D12CommandAllocator> CmdAlloc;
-	ComPtr<ID3D12GraphicsCommandList> CmdList;
+	ComPtr<ID3D12GraphicsCommandList6> CmdList;
 	MemoryContext MemContext;
 	Fence CmdFence;
 

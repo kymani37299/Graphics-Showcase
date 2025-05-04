@@ -577,8 +577,13 @@ namespace ModelLoading
 		const uint32_t vertCount = (uint32_t) meshData->attributes[0].data->count;
 
 		const VertexAttributesData vertices = LoadAttributes(meshData->attributes, meshData->attributes_count);
-		std::vector<uint32_t> joints;
+		mesh.PositionsData.resize(vertCount);
+		for (uint32_t i = 0; i < vertCount; i++)
+		{
+			mesh.PositionsData[i] = vertices.Positions[i];
+		}
 
+		std::vector<uint32_t> joints;
 		if (vertices.Joints8)
 		{
 			joints.resize(vertices.NumVertices * 4);
@@ -593,9 +598,8 @@ namespace ModelLoading
 				joints[i] = vertices.Joints16[i];
 		}
 
-		std::vector<uint32_t> indices;
 		if(meshData->indices)
-			LoadIB(meshData->indices, indices);
+			LoadIB(meshData->indices, mesh.IndicesData);
 
 		const auto createBuffer = [this](const void* data, uint32_t stride, uint32_t numElements)
 		{
@@ -616,8 +620,8 @@ namespace ModelLoading
 		mesh.Tangents = createBuffer(vertices.Tangents, sizeof(DirectX::XMFLOAT4), vertCount);
 		mesh.Weights = createBuffer(vertices.Weights, sizeof(Float4), vertCount);
 		mesh.Joints = createBuffer(joints.empty() ? nullptr : joints.data(), sizeof(uint32_t) * 4, vertCount);
-		mesh.Indices = createBuffer(indices.empty() ? nullptr : indices.data(), sizeof(uint32_t), (uint32_t)indices.size());
-		mesh.PrimitiveCount = mesh.Indices ? (uint32_t) indices.size() : vertices.NumVertices;
+		mesh.Indices = createBuffer(mesh.IndicesData.empty() ? nullptr : mesh.IndicesData.data(), sizeof(uint32_t), (uint32_t)mesh.IndicesData.size());
+		mesh.PrimitiveCount = mesh.Indices ? (uint32_t) mesh.IndicesData.size() : vertices.NumVertices;
 
 		return mesh;
 	}

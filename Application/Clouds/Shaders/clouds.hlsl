@@ -25,9 +25,9 @@ struct CloudsSettingsCB
 	float SunLightBias;
 	float SunPhaseValue;
 
-	// Raymach num steps
-	float CloudMarchNumSteps;
-	float LightMarchNumSteps;
+	// Raymach settings
+	float CloudMarchStepSize;
+	float LightMarchStepSize;
 };
 
 struct SunSettingsCB
@@ -169,14 +169,16 @@ float LightMarch(float3 position)
 	RaytraceResult result = Raytrace(ray, cloudBounds);
 	// ASSERT(result.Hit, "It must hit since we are inside of a box");
 
-	const float insideBoxDistance = result.DistanceFar;
-	const float stepSize = insideBoxDistance / CloudSettings.LightMarchNumSteps;
+	float boxDistance = 0.0f;
+	float3 samplePos = position;
 
 	float totalDensity = 0.0f;
-	for (float i = 0.0f; i < CloudSettings.LightMarchNumSteps; i++)
+	while(boxDistance < result.DistanceFar)
 	{
-		const float3 samplePos = position + toLight * stepSize * i;
-		totalDensity += SampleCloudDensity(samplePos) * stepSize;
+		totalDensity += SampleCloudDensity(samplePos) * CloudSettings.LightMarchStepSize;
+		samplePos += toLight * CloudSettings.LightMarchStepSize;
+		boxDistance += CloudSettings.LightMarchStepSize;
+		// boxDistance += 10.0f;
 	}
 
 	const float transmittance = GetTransmittance(totalDensity * CloudSettings.SunLightAbsorption);
@@ -186,25 +188,26 @@ float LightMarch(float3 position)
 // x - transmittance, y - light energy
 float2 CloudMarch(Ray ray, RaytraceResult cloudboxResult)
 {
-	const float insideBoxDistance = cloudboxResult.DistanceFar - cloudboxResult.DistanceNear;
-	const float stepSize = insideBoxDistance / CloudSettings.CloudMarchNumSteps;
-	
 	float transmittance = 1.0f;
 	float lightEnergy = 0.0f;
 
-	for (float i = 0.0f; i < CloudSettings.CloudMarchNumSteps; i++)
+	float boxDistance = cloudboxResult.DistanceNear;
+	float3 samplePos = ray.Origin + ray.Direction * cloudboxResult.DistanceNear;
+	while(boxDistance < cloudboxResult.DistanceFar)
 	{
-		const float3 samplePos = ray.Origin + ray.Direction * (cloudboxResult.DistanceNear + i * stepSize);
 		const float density = SampleCloudDensity(samplePos);
 		if (density > 0.0f)
 		{
 			const float lightTransmittance = LightMarch(samplePos);
-			lightEnergy += density * stepSize * transmittance * lightTransmittance * CloudSettings.SunPhaseValue;
-			transmittance *= GetTransmittance(density * stepSize * CloudSettings.CloudLightAbsorption);
+			lightEnergy += density * CloudSettings.CloudMarchStepSize * transmittance * lightTransmittance * CloudSettings.SunPhaseValue;
+			transmittance *= GetTransmittance(density * CloudSettings.CloudMarchStepSize * CloudSettings.CloudLightAbsorption);
 	
 			// Ealy exit
 			if (transmittance < 0.01f) break;
 		}
+
+		samplePos += ray.Direction * CloudSettings.CloudMarchStepSize;
+		boxDistance += CloudSettings.CloudMarchStepSize;
 	}
 
 	return float2(transmittance, lightEnergy);

@@ -22,6 +22,8 @@
     <ClCompile Include="PBR\PBRAppGUI.cpp" />
     <ClCompile Include="VolumetricLights\VolumetricLightsApp.cpp" />
     <ClCompile Include="VolumetricLights\VolumetricLightsAppGUI.cpp" />
+    <ClCompile Include="Meshlets\MeshletsApp.cpp" />
+    <ClCompile Include="Meshlets\MeshletsAppGUI.cpp" />
     <None Include="Clouds\Shaders\clouds.hlsl">
       <FileType>Document</FileType>
     </None>
@@ -53,6 +55,9 @@
     <ClInclude Include="VolumetricLights\Settings.h" />
     <ClInclude Include="VolumetricLights\VolumetricLightsApp.h" />
     <ClInclude Include="VolumetricLights\VolumetricLightsAppGUI.h" />
+    <ClInclude Include="Meshlets\MeshletsApp.h" />
+    <ClInclude Include="Meshlets\MeshletsAppGUI.h" />
+    <ClInclude Include="Meshlets\Settings.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Clouds\Shaders\worley_noise.hlsl">
@@ -99,11 +104,16 @@
       <FileType>Document</FileType>
     </None>
   </ItemGroup>
-  <ItemGroup>
-    <None Include="VolumetricLights\Shaders\background.hlsl">
-      <FileType>Document</FileType>
-    </None>
-  </ItemGroup>
+<ItemGroup>
+	<None Include="Meshlets\Shaders\draw.hlsl">
+		<FileType>Document</FileType>
+	</None>
+</ItemGroup>
+<ItemGroup>
+	<None Include="VolumetricLights\Shaders\background.hlsl">
+		<FileType>Document</FileType>
+	</None>
+</ItemGroup>
   <ItemGroup>
     <None Include="VolumetricLights\Shaders\scene.hlsl">
       <FileType>Document</FileType>
@@ -165,6 +175,42 @@
     <OutDir>$(SolutionDir)\Build\$(ProjectName)\$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(ProjectName)\$(Platform)\$(Configuration)\</IntDir>
   </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Application;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\DirectXHeaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_x86_d.lib;D3D12MAd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpplatest</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Application;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\DirectXHeaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>d3d12.lib;dxcompiler.lib;dxguid.lib;dxgi.lib;WinPixEventRuntime.lib;Engine.lib;DirectXMesh_x86.lib;D3D12MA.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(SolutionDir)\Build\Engine\$(Platform)\$(Configuration)\;$(SolutionDir)\External\DirectXMesh\Lib;$(SolutionDir)\External\D3D12MemoryAllocator\bin;$(SolutionDir)\External\WinPixEventRuntime\bin\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -172,7 +218,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Application;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\Optick\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Application;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\DirectXHeaders;$(SolutionDir)\External\Optick\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -190,7 +236,7 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpplatest</LanguageStandard>
-      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Application;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\Optick\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\External\imgui\src;$(SolutionDir)\External\cgitf;$(SolutionDir);$(SolutionDir)\Application;$(SolutionDir)\Engine;$(SolutionDir)\External\DirectXMesh\Include;$(SolutionDir)\External\Optick\include;$(SolutionDir)\External\DirectXHeaders;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>

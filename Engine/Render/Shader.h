@@ -18,7 +18,8 @@ enum ShaderStage : uint8_t
 	DS = 1 << 3,
 	PS = 1 << 4,
 	CS = 1 << 5,
-	SHADER_STAGE_COUNT = 6
+	MS = 1 << 6,
+	SHADER_STAGE_COUNT = 7
 };
 
 using ShaderHash = uint32_t;
@@ -33,6 +34,7 @@ struct CompiledShader
 	D3D12_SHADER_BYTECODE Domain;
 	D3D12_SHADER_BYTECODE Pixel;
 	D3D12_SHADER_BYTECODE Compute;
+	D3D12_SHADER_BYTECODE Mesh;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> InputLayout;
 	std::vector<D3D12_INPUT_ELEMENT_DESC> InputLayoutMultiInput;
 

@@ -35,4 +35,10 @@ namespace Random
 	{
 		return rand() % (b - a + 1) + a;
 	}
+	
+	// Random float3 [a,b]
+	inline Float3 F3(float a, float b)
+	{
+		return { Float(a,b), Float(a,b), Float(a,b) };
+	}
 }

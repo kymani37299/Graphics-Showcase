@@ -175,7 +175,7 @@ namespace GFX
 		// Returns true if compile success
 		bool CompileShader(const std::string path, const uint32_t creationFlags, const std::vector<std::string>& defines, CompiledShader& compiledShader)
 		{
-			static const std::wstring SHADER_VERSION = L"6_0";
+			static const std::wstring SHADER_VERSION = L"6_5";
 
 			std::vector<std::wstring> dxcDefinesW;
 			std::vector<DxcDefine> dxcDefines;
@@ -192,16 +192,17 @@ namespace GFX
 			const std::wstring wPath = StringUtility::ToWideString(path);
 
 			bool compilationSuccess = true;
-			compiledShader.Data.resize(6);
+			compiledShader.Data.resize(SHADER_STAGE_COUNT);
 			compiledShader.Data[0] = creationFlags & VS ? DXC_Compile(wPath, L"VS", L"vs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
 			compiledShader.Data[1] = creationFlags & GS ? DXC_Compile(wPath, L"GS", L"gs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
 			compiledShader.Data[2] = creationFlags & HS ? DXC_Compile(wPath, L"HS", L"hs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
 			compiledShader.Data[3] = creationFlags & DS ? DXC_Compile(wPath, L"DS", L"ds_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
 			compiledShader.Data[4] = creationFlags & PS ? DXC_Compile(wPath, L"PS", L"ps_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
 			compiledShader.Data[5] = creationFlags & CS ? DXC_Compile(wPath, L"CS", L"cs_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
+			compiledShader.Data[6] = creationFlags & MS ? DXC_Compile(wPath, L"MS", L"ms_" + SHADER_VERSION, dxcDefines, compilationSuccess) : nullptr;
 
-			ComPtr<IDxcBlob> shaderBlobs[6];
-			for (uint32_t i = 0; i < 6; i++)
+			ComPtr<IDxcBlob> shaderBlobs[SHADER_STAGE_COUNT];
+			for (uint32_t i = 0; i < SHADER_STAGE_COUNT; i++)
 			{
 				if (compiledShader.Data[i]) API_CALL(compiledShader.Data[i]->GetResult(shaderBlobs[i].GetAddressOf()));
 			}
@@ -212,6 +213,7 @@ namespace GFX
 			compiledShader.Domain = shaderBlobs[3].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[3]->GetBufferPointer(), shaderBlobs[3]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
 			compiledShader.Pixel = shaderBlobs[4].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[4]->GetBufferPointer(), shaderBlobs[4]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
 			compiledShader.Compute = shaderBlobs[5].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[5]->GetBufferPointer(), shaderBlobs[5]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
+			compiledShader.Mesh = shaderBlobs[6].Get() ? D3D12_SHADER_BYTECODE{ shaderBlobs[6]->GetBufferPointer(), shaderBlobs[6]->GetBufferSize() } : D3D12_SHADER_BYTECODE{ nullptr, 0 };
 
 			if (compiledShader.Vertex.BytecodeLength)
 			{
@@ -252,6 +254,7 @@ namespace GFX
 		if (shaderStages & GS) defAll += "GS";
 		if (shaderStages & PS) defAll += "PS";
 		if (shaderStages & CS) defAll += "CS";
+		if (shaderStages & MS) defAll += "MS";
 		return Hash::Crc32(defAll);
 	}
 

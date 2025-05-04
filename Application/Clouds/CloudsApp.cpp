@@ -89,6 +89,9 @@ void CloudsApp::OnInit(GraphicsContext& context)
 
 void CloudsApp::OnDestroy(GraphicsContext& context)
 {
+	GFX::Cmd::Delete(context, m_CloudNoise);
+	GFX::Cmd::Delete(context, m_CloudDetailNoise);
+
 	CloudsAppGUI::RemoveGUI();
 }
 
@@ -104,8 +107,8 @@ Texture* CloudsApp::OnDraw(GraphicsContext& context)
 	GraphicsState state{};
 	state.Shader = m_CloudsShader.get();
 	state.Table.CBVs[0] = cb.GetBuffer(context);
-	state.Table.SRVs[0] = m_CloudNoise.get();
-	state.Table.SRVs[1] = m_CloudDetailNoise.get();
+	state.Table.SRVs[0] = m_CloudNoise;
+	state.Table.SRVs[1] = m_CloudDetailNoise;
 	state.Table.SMPs[0] = Sampler{ D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR, D3D12_TEXTURE_ADDRESS_MODE_WRAP };
 	state.RenderTargets[0] = m_FinalResult.get();
 	GFX::Cmd::DrawFC(context, state);
@@ -125,8 +128,11 @@ void CloudsApp::OnUpdate(GraphicsContext& context, float dt)
 
 void CloudsApp::OnShaderReload(GraphicsContext& context)
 {
-	m_CloudNoise = ScopedRef<Texture>(GenerateWorleyNoise(context));
-	m_CloudDetailNoise = ScopedRef<Texture>(GenerateWorleyNoise(context));
+	GFX::Cmd::Delete(context, m_CloudNoise);
+	GFX::Cmd::Delete(context, m_CloudDetailNoise);
+
+	m_CloudNoise = GenerateWorleyNoise(context);
+	m_CloudDetailNoise = GenerateWorleyNoise(context);
 }
 
 void CloudsApp::OnWindowResize(GraphicsContext& context)

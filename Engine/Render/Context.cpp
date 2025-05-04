@@ -301,6 +301,45 @@ static ID3D12PipelineState* GetOrCreatePSO(GraphicsContext& context, const Graph
 			context.PSOCache[psoHash] = pipelineState;
 		}
 	}
+	else if (state.ShaderStages & MS)
+	{
+		D3DX12_MESH_SHADER_PIPELINE_STATE_DESC pipeline = {};
+		pipeline.pRootSignature = rootSignature;
+		pipeline.BlendState = state.BlendState;
+		pipeline.SampleMask = UINT_MAX;
+		pipeline.RasterizerState = state.RasterizerState;
+		pipeline.DepthStencilState = state.DepthStencilState;
+		pipeline.PrimitiveTopologyType = ToPrimitiveTopologyType(state.PrimitiveType);
+		pipeline.NodeMask = 0;
+		pipeline.CachedPSO = { nullptr, 0 };
+		pipeline.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
+		pipeline.MS = compShader.Mesh;
+		pipeline.PS = compShader.Pixel;
+		pipeline.DSVFormat = state.DepthStencil ? state.DepthStencil->Format : DXGI_FORMAT_R24G8_TYPELESS;
+		pipeline.NumRenderTargets = (UINT)state.RenderTargets.size();
+		for (uint32_t i = 0; i < 8; i++) pipeline.RTVFormats[i] = i < pipeline.NumRenderTargets ? state.RenderTargets[i]->Format : DXGI_FORMAT_UNKNOWN;
+		pipeline.SampleDesc.Count = state.RenderTargets.empty() ? (state.DepthStencil ? GetSampleCount(state.DepthStencil->CreationFlags) : 1) : GetSampleCount(state.RenderTargets[0]->CreationFlags);
+		pipeline.SampleDesc.Quality = 0;
+
+
+
+		psoHash = Hash::Crc32(pipeline);
+		if (context.PSOCache.contains(psoHash))
+		{
+			pipelineState = context.PSOCache[psoHash].Get();
+		}
+		else
+		{
+			auto psoStream = CD3DX12_PIPELINE_MESH_STATE_STREAM(pipeline);
+
+			D3D12_PIPELINE_STATE_STREAM_DESC streamDesc;
+			streamDesc.pPipelineStateSubobjectStream = &psoStream;
+			streamDesc.SizeInBytes = sizeof(psoStream);
+
+			API_CALL(Device::Get()->GetHandle()->CreatePipelineState(&streamDesc, IID_PPV_ARGS(&pipelineState)));
+			context.PSOCache[psoHash] = pipelineState;
+		}
+	}
 	else
 	{
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC pipeline{};

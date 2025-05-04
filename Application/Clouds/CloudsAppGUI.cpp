@@ -60,8 +60,8 @@ namespace CloudsAppGUI
 			ImGui::Separator();
 
 			ImGui::Text("Raymaching");
-			ImGui::DragFloat("CloudMarch NumSteps", &CloudSettings.CloudMarchNumSteps, 1.0f);
-			ImGui::DragFloat("LightMarch NumSteps", &CloudSettings.LightMarchNumSteps, 1.0f);
+			ImGui::DragFloat("CloudMarch step size", &CloudSettings.CloudMarchStepSize, 0.01f, 0.01f);
+			ImGui::DragFloat("LightMarch step size", &CloudSettings.LightMarchStepSize, 0.01f, 0.01f);
 		
 			ImGui::PopItemWidth();
 		}

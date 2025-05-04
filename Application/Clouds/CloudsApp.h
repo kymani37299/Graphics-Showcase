@@ -26,8 +26,8 @@ private:
 
 	ScopedRef<Shader> m_CloudsShader;
 
-	ScopedRef<Texture> m_CloudNoise;
-	ScopedRef<Texture> m_CloudDetailNoise;
+	Texture* m_CloudNoise;
+	Texture* m_CloudDetailNoise;
 
 	ScopedRef<Texture> m_FinalResult;
 };

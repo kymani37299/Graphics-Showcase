@@ -95,6 +95,9 @@ namespace ModelLoading
 	{
 		uint32_t PrimitiveCount = 0;
 
+		std::vector<Float3> PositionsData;
+		std::vector<uint32_t> IndicesData;
+
 		Buffer* Positions = nullptr;	// float3
 		Buffer* Texcoords = nullptr;	// float2
 		Buffer* Normals = nullptr;		// float3 
