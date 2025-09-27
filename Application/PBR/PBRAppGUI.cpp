@@ -73,7 +73,26 @@ namespace PBRAppGUI
 		void Render(GraphicsContext& context) override
 		{
 			EnumSelect("BRDF Function", PBRCfg.BRDF_Function);
+			if (PBRCfg.BRDF_Function == BRDF::PBR)
+			{
+				EnumSelect("NDF Function", PBRCfg.NDF);
+				EnumSelect("MaskingShadowing Function", PBRCfg.MaskingShadowing);
+			}
+			else
+			{
+				PBRCfg.NDF = NDF::None;
+				PBRCfg.MaskingShadowing = MaskingShadowing::None;
+			}
+
 			DragFloat3UNorm("Subsurface albedo", PBRCfg.SubsurfaceAlbedo);
+
+			float maxRoughness = 1.0f;
+			if (PBRCfg.NDF == NDF::BlinnPhong)
+			{
+				maxRoughness = 0.0f; // Infinite
+			}
+
+			ImGui::DragFloat("Roughness", &PBRCfg.Roughness, 0.01f, 0.0f, maxRoughness);
 
 			ImGui::Separator();
 

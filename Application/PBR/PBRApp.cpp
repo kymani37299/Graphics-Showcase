@@ -20,7 +20,7 @@ struct PBRSettingsCB
 	Float3 LightColor; float Pad2;
 	Float3 F0; float Pad3;
 	Float3 F90; float Pad4;
-	float P; Float3 Pad5;
+	float P; float Roughness; Float2 Pad5;
 };
 
 static void FillPBRSettings(PBRSettingsCB& pbrSettings, const PBRConfig& pbrCfg)
@@ -43,13 +43,19 @@ static void FillPBRSettings(PBRSettingsCB& pbrSettings, const PBRConfig& pbrCfg)
 	pbrSettings.F0 = pbrCfg.F0;
 	pbrSettings.F90 = pbrCfg.F90;
 	pbrSettings.P = pbrCfg.P;
+	pbrSettings.Roughness = pbrCfg.Roughness;
 }
 
 static void FillShaderConfig(std::vector<std::string>& shaderConfig, const PBRConfig& pbrCfg)
 {
-	if (pbrCfg.BRDF_Function == BRDF::Lambert)
+	switch (pbrCfg.BRDF_Function)
 	{
+	case BRDF::Lambert:
 		shaderConfig.push_back("BRDF_Lambert");
+		break;
+	case BRDF::PBR:
+		shaderConfig.push_back("BRDF_PBR");
+		break;
 	}
 
 	switch (pbrCfg.Illumination_Type)
@@ -66,6 +72,38 @@ static void FillShaderConfig(std::vector<std::string>& shaderConfig, const PBRCo
 	{
 	case FresnelReflectance::Shlick:
 		shaderConfig.push_back("Fresnel_Shlick");
+		break;
+	}
+
+	switch (pbrCfg.NDF)
+	{
+	case NDF::Beckmann:
+		shaderConfig.push_back("NDF_Beckmann");
+		break;
+	case NDF::BlinnPhong:
+		shaderConfig.push_back("NDF_BlinnPhong");
+		break;
+	case NDF::GGX:
+		shaderConfig.push_back("NDF_GGX");
+		break;
+	}
+
+	switch (pbrCfg.MaskingShadowing)
+	{
+	case MaskingShadowing::Smith:
+		shaderConfig.push_back("MaskingShadowing_Smith");
+		break;
+	case MaskingShadowing::SmithAngleFix1:
+		shaderConfig.push_back("MaskingShadowing_SmithAngleFix1");
+		break;
+	case MaskingShadowing::SmithAngleFix2:
+		shaderConfig.push_back("MaskingShadowing_SmithAngleFix2");
+		break;
+	case MaskingShadowing::SmithHeightCorrelated:
+		shaderConfig.push_back("MaskingShadowing_SmithHeightCorrelated");
+		break;
+	case MaskingShadowing::Heitz:
+		shaderConfig.push_back("MaskingShadowing_Heitz");
 		break;
 	}
 }

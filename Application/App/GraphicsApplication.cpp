@@ -8,30 +8,44 @@
 
 #include "App/GraphicsApplicationGUI.h"
 #include "Common/DebugRender.h"
-#include "Animation/AnimationApp.h"
-#include "Clouds/CloudsApp.h"
-#include "Grass/GrassApp.h"
-#include "VolumetricLights/VolumetricLightsApp.h"
-#include "PBR/PBRApp.h"
+#include "SampleList.h"
 
-#define ADD_SAMPLE(Index, Class, Name) m_NumSamples = max(m_NumSamples, Index+1); if(m_SampleNames.size() < Index+1) m_SampleNames.resize(Index+1); m_SampleNames[Index] = Name;
-void GraphicsApplication::RegisterSamples()
+void GraphicsApplication::NextSample()
 {
-#include "App/SampleList.h"
+	const uint32_t sampleCount = static_cast<uint32_t>(s_SampleList.size());
+	m_PendingSampleIndex = (m_ActiveSampleIndex + 1) % sampleCount;
 }
-#undef ADD_SAMPLE
 
-#define ADD_SAMPLE(Index, Class, Name) case Index: m_ActiveSample = new Class{}; break;
-void GraphicsApplication::SwitchSample(uint32_t sampleIndex)
+void GraphicsApplication::PreviousSample()
 {
-	switch (sampleIndex)
+	const uint32_t sampleCount = static_cast<uint32_t>(s_SampleList.size());
+	m_PendingSampleIndex = m_ActiveSampleIndex == 0 ? sampleCount - 1 : m_ActiveSampleIndex - 1;
+}
+
+const char* GraphicsApplication::GetActiveSampleName() const
+{
+	return s_SampleList[m_ActiveSampleIndex].Name;
+}
+
+void GraphicsApplication::SwitchSample(GraphicsContext& context, uint32_t sampleIndex)
+{
+	const uint32_t sampleCount = static_cast<uint32_t>(s_SampleList.size());
+	if (sampleIndex >= sampleCount)
 	{
-#include "App/SampleList.h"
-	default:
 		ASSERT(0, "[GraphicsApplication] Trying to switch to nonexistent sample!");
+		return;
 	}
+
+	if (m_ActiveSample != nullptr)
+	{
+		m_ActiveSample->OnDestroy(context);
+		delete m_ActiveSample;
+	}
+	
+	m_ActiveSampleIndex = sampleIndex;
+	m_ActiveSample = s_SampleList[m_ActiveSampleIndex].CreateFunction();
+	m_ActiveSample->OnInit(context);
 }
-#undef ADD_SAMPLE
 
 void GraphicsApplication::OnInit_Internal(GraphicsContext& context)
 {
@@ -45,9 +59,7 @@ void GraphicsApplication::OnInit_Internal(GraphicsContext& context)
 	gui->AddElement(new ControlsGUI());
 	gui->PopMenu();
 
-	RegisterSamples();
-	SwitchSample(m_ActiveSampleIndex);
-	m_ActiveSample->OnInit(context);
+	SwitchSample(context, m_ActiveSampleIndex);
 }
 
 void GraphicsApplication::OnUpdate_Internal(GraphicsContext& context, float dt)
@@ -87,13 +99,7 @@ void GraphicsApplication::OnUpdate_Internal(GraphicsContext& context, float dt)
 	if (m_PendingSampleIndex != m_ActiveSampleIndex)
 	{
 		ContextManager::Get().Flush();
-
-		m_ActiveSample->OnDestroy(context);
-		delete m_ActiveSample;
-
-		m_ActiveSampleIndex = m_PendingSampleIndex;
-		SwitchSample(m_ActiveSampleIndex);
-		m_ActiveSample->OnInit(context);
+		SwitchSample(context, m_PendingSampleIndex);
 	}
 }
 

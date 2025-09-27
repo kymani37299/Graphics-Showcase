@@ -6,6 +6,7 @@ enum class BRDF
 {
 	None = 0,
 	Lambert,
+	PBR,
 	Count,
 };
 
@@ -31,6 +32,27 @@ enum class FresnelReflectance
 	Count,
 };
 
+enum class NDF
+{
+	None,
+	Beckmann,
+	BlinnPhong,
+	GGX,
+	Count,
+};
+
+enum class MaskingShadowing
+{
+	None,
+	Smith,
+	SmithAngleFix1,
+	SmithAngleFix2,
+	SmithHeightCorrelated,
+	Heitz,
+	Count,
+
+};
+
 struct PBRConfig
 {
 	BRDF BRDF_Function = BRDF::None;
@@ -48,7 +70,11 @@ struct PBRConfig
 	float n1 = 1.0f;
 	float n2 = 1.33f;
 
-	FresnelReflectance FresnelReflectance;
+	float Roughness = 1.0f;
+
+	FresnelReflectance FresnelReflectance = FresnelReflectance::None;
+	NDF NDF = NDF::None;
+	MaskingShadowing MaskingShadowing = MaskingShadowing::None;
 
 	float ModelRotationSpeed = 1.0f;
 };
@@ -64,6 +90,7 @@ const char* ToString(BRDF brdf)
 	{
 		ENUM_TO_STRING(BRDF, None);
 		ENUM_TO_STRING(BRDF, Lambert);
+		ENUM_TO_STRING(BRDF, PBR);
 		DEFAULT_ENUM_TO_STRING;
 	}
 }
@@ -95,6 +122,32 @@ const char* ToString(FresnelReflectance reflectance)
 	{
 		ENUM_TO_STRING(FresnelReflectance, None);
 		ENUM_TO_STRING(FresnelReflectance, Shlick);
+		DEFAULT_ENUM_TO_STRING;
+	}
+}
+
+const char* ToString(NDF ndf)
+{
+	switch (ndf)
+	{
+		ENUM_TO_STRING(NDF, None);
+		ENUM_TO_STRING(NDF, Beckmann);
+		ENUM_TO_STRING(NDF, BlinnPhong);
+		ENUM_TO_STRING(NDF, GGX);
+		DEFAULT_ENUM_TO_STRING;
+	}
+}
+
+const char* ToString(MaskingShadowing ms)
+{
+	switch (ms)
+	{
+		ENUM_TO_STRING(MaskingShadowing, None);
+		ENUM_TO_STRING(MaskingShadowing, Smith);
+		ENUM_TO_STRING(MaskingShadowing, SmithAngleFix1);
+		ENUM_TO_STRING(MaskingShadowing, SmithAngleFix2);
+		ENUM_TO_STRING(MaskingShadowing, SmithHeightCorrelated);
+		ENUM_TO_STRING(MaskingShadowing, Heitz);
 		DEFAULT_ENUM_TO_STRING;
 	}
 }

@@ -40,15 +40,13 @@ public:
 		m_ActiveSample->OnWindowResize(context);
 	}
 
-	std::string GetActiveSampleName() const { return m_SampleNames[m_ActiveSampleIndex]; }
-	std::vector<std::string>& GetSamples() { return m_SampleNames; }
-	
-	void NextSample() { m_PendingSampleIndex = (m_ActiveSampleIndex + 1) % m_NumSamples; }
-	void PreviousSample() { m_PendingSampleIndex = m_ActiveSampleIndex == 0 ? m_NumSamples - 1 : m_ActiveSampleIndex - 1; }
+	void NextSample();
+	void PreviousSample();
+
+	const char* GetActiveSampleName() const;
 
 private:
-	void RegisterSamples();
-	void SwitchSample(uint32_t sampleIndex);
+	void SwitchSample(GraphicsContext& context, uint32_t sampleIndex);
 
 	void OnInit_Internal(GraphicsContext& context);
 	void OnUpdate_Internal(GraphicsContext& context, float dt);
@@ -59,7 +57,4 @@ private:
 	uint32_t m_ActiveSampleIndex = 0;
 
 	Application* m_ActiveSample = 0;
-
-	uint32_t m_NumSamples = 0;
-	std::vector<std::string> m_SampleNames;
 };

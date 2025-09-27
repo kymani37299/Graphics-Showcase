@@ -20,7 +20,7 @@ protected:
 
 	void Render(GraphicsContext& context) override
 	{
-		ImGui::Text("Active: %s", m_Application->GetActiveSampleName().c_str());
+		ImGui::Text("Active: %s", m_Application->GetActiveSampleName());
 
 		if (ImGui::Button("Previous"))
 		{
